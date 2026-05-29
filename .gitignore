@@ -28,3 +28,10 @@ Quarantine/
 .vscode/
 .DS_Store
 Thumbs.db
+
+# Python compiled cache and artifacts
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+.pytest_cache/

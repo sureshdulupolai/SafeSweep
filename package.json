@@ -1,0 +1,43 @@
+{
+  "name": "ai-smart-pc-cleaner",
+  "version": "1.0.0",
+  "description": "Premium, offline-first, and safety-focused Windows desktop utility.",
+  "main": "src/main/main.js",
+  "scripts": {
+    "dev": "vite",
+    "build:ui": "vite build",
+    "build:sidecar": "pyinstaller --clean --noconfirm --onefile --distpath sidecar-dist src-sidecar/main.py",
+    "build": "npm run build:ui && npm run build:sidecar",
+    "preview": "vite preview",
+    "electron:start": "electron .",
+    "electron:dev": "concurrently \"npm run dev\" \"wait-on http://localhost:5173 && electron .\"",
+    "dist": "electron-builder"
+  },
+  "keywords": [
+    "utility",
+    "cleaner",
+    "offline-first",
+    "privacy-focused",
+    "electron"
+  ],
+  "author": "Antigravity",
+  "license": "Proprietary",
+  "dependencies": {
+    "framer-motion": "^11.2.10",
+    "lucide-react": "^0.381.0",
+    "react": "^18.3.1",
+    "react-dom": "^18.3.1",
+    "react-window": "^1.8.10",
+    "zustand": "^4.5.2"
+  },
+  "devDependencies": {
+    "@vitejs/plugin-react": "^4.3.0",
+    "autoprefixer": "^10.4.19",
+    "concurrently": "^8.2.2",
+    "electron": "^30.0.9",
+    "postcss": "^8.4.38",
+    "tailwindcss": "^3.4.3",
+    "vite": "^5.2.11",
+    "wait-on": "^7.2.0"
+  }
+}

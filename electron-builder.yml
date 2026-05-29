@@ -1,0 +1,35 @@
+appId: "com.antigravity.aicleaner"
+productName: "AI Smart PC Cleaner"
+copyright: "Copyright © 2026 Antigravity. All rights reserved."
+
+directories:
+  output: "dist-app"
+  buildResources: "build"
+
+files:
+  - "dist-ui/**/*"
+  - "src/**/*"
+  - "package.json"
+
+extraResources:
+  - from: "sidecar-dist"
+    to: "sidecar-dist"
+    filter:
+      - "**/*"
+
+win:
+  target:
+    - target: "nsis"
+      arch:
+        - "x64"
+  requestedExecutionLevel: "asInvoker" # Safety-first: avoids forcing admin rights on run
+
+nsis:
+  oneClick: false
+  allowToChangeInstallationDirectory: true
+  createDesktopShortcut: true
+  createStartMenuShortcut: true
+  runAfterFinish: true
+  installerIcon: "build/icon.ico"
+  uninstallerIcon: "build/icon.ico"
+  uninstallDisplayName: "AI Smart PC Cleaner"

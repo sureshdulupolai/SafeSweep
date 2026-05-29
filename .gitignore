@@ -1,0 +1,30 @@
+# Dependencies
+node_modules/
+
+# Compiled Front-End and Electron Apps
+dist-ui/
+dist-app/
+dist/
+
+# PyInstaller Outputs and Sidecar Binaries
+sidecar-dist/
+build/
+*.spec
+
+# SQLite Database and Temporary Files
+*.db
+*.db-wal
+*.db-shm
+*.db.bak
+*.journal
+
+# Debugging and Application Logs
+*.log
+Logs/
+Quarantine/
+
+# OS and IDE Configurations
+.idea/
+.vscode/
+.DS_Store
+Thumbs.db

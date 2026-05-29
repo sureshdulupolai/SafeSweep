@@ -1,0 +1,41 @@
+@import 'tailwindcss/base';
+@import 'tailwindcss/components';
+@import 'tailwindcss/utilities';
+
+@layer base {
+  body {
+    @apply bg-brand-darkest text-gray-100 antialiased font-sans overflow-hidden select-none;
+  }
+}
+
+/* Custom Premium Minimalist Dark Scrollbars */
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+
+::-webkit-scrollbar-track {
+  background: #070A13;
+}
+
+::-webkit-scrollbar-thumb {
+  background: #1E293B;
+  border-radius: 4px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: #2A7BEF;
+}
+
+/* Custom Micro-interactions & animations */
+.premium-glow-subtle {
+  box-shadow: 0 0 20px -5px rgba(42, 123, 239, 0.15);
+}
+
+.danger-glow-subtle {
+  box-shadow: 0 0 20px -5px rgba(239, 68, 68, 0.15);
+}
+
+.glass-card {
+  @apply bg-brand-card bg-opacity-70 border border-brand-border backdrop-blur-md rounded-xl;
+}

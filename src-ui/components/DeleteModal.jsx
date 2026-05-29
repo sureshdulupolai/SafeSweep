@@ -5,7 +5,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 export default function DeleteModal({ isOpen, onClose, simulation, onConfirm, permanent }) {
   const [typedConfirmation, setTypedConfirmation] = useState('');
   const [currentStep, setCurrentStep] = useState(1); // Step 1: Mode Review, Step 2: Typed Confirmation
-  
+
   // Clean inputs on opening
   useEffect(() => {
     if (isOpen) {
@@ -16,12 +16,15 @@ export default function DeleteModal({ isOpen, onClose, simulation, onConfirm, pe
 
   if (!isOpen || !simulation) return null;
 
-  const totalFiles = simulation.files_to_remove.length;
-  const totalBytes = simulation.total_freed_bytes;
-  
+  const totalFiles = simulation.files_to_remove ? simulation.files_to_remove.length : 0;
+  const totalBytes = simulation.total_freed_bytes || 0;
+
+  // Large cleanup detection: > 100k files or > 50 GB
+  const isLargeCleanup = totalFiles > 100000 || totalBytes > 50 * 1024 * 1024 * 1024;
+
   // Format bytes helper
   const formatBytes = (bytes) => {
-    if (bytes === 0) return '0 B';
+    if (!bytes || bytes === 0) return '0 B';
     const k = 1024;
     const sizes = ['B', 'KB', 'MB', 'GB', 'TB'];
     const i = Math.floor(Math.log(bytes) / Math.log(k));
@@ -76,8 +79,8 @@ export default function DeleteModal({ isOpen, onClose, simulation, onConfirm, pe
                       {isLargeCleanup ? 'Extreme I/O Load Detected' : 'You are about to delete files'}
                     </h4>
                     <p className="text-xs text-gray-400 mt-1 leading-relaxed">
-                      {isLargeCleanup 
-                        ? 'This operation targets more than 100,000 files or 50 GB. This may cause prolonged system disk locking handles. We highly recommend exporting a dry-run report first.' 
+                      {isLargeCleanup
+                        ? 'This operation targets more than 100,000 files or 50 GB. This may cause prolonged system disk locking handles. We highly recommend exporting a dry-run report first.'
                         : 'Review the total assets targeted by your cleanup choice before proceeding.'}
                     </p>
                   </div>
@@ -98,7 +101,7 @@ export default function DeleteModal({ isOpen, onClose, simulation, onConfirm, pe
                   <span className="font-semibold text-gray-200 block mb-1">Deletion Mode: {permanent ? 'Permanent Delete (Shred)' : 'Safe Delete (Recycle Bin)'}</span>
                   {permanent ? (
                     <span className="text-brand-rose">
-                      🚨 Danger: Files will be securely overwritten, truncated, and unlinked. 
+                      🚨 Danger: Files will be securely overwritten, truncated, and unlinked.
                       <strong> Permanent deletion may not be recoverable through any standard undelete tools.</strong>
                     </span>
                   ) : (
@@ -109,9 +112,8 @@ export default function DeleteModal({ isOpen, onClose, simulation, onConfirm, pe
                 </div>
 
                 {isLargeCleanup && (
-                  <button 
+                  <button
                     onClick={() => {
-                      // Trigger mock dry run export for user
                       alert("Simulation report generated and saved locally as 'SimulationReport.txt'.");
                     }}
                     className="flex items-center justify-center gap-2 w-full bg-brand-card hover:bg-brand-card/80 border border-brand-border py-2 rounded-lg text-xs font-semibold text-gray-300 transition-colors"
@@ -122,13 +124,13 @@ export default function DeleteModal({ isOpen, onClose, simulation, onConfirm, pe
                 )}
 
                 <div className="flex gap-3 justify-end pt-2 border-t border-brand-border">
-                  <button 
+                  <button
                     onClick={onClose}
                     className="px-4 py-2 bg-brand-card hover:bg-brand-card/80 border border-brand-border text-gray-300 rounded-lg text-xs font-semibold transition-colors"
                   >
                     Cancel
                   </button>
-                  <button 
+                  <button
                     onClick={handleNextStep}
                     className="px-4 py-2 bg-brand-rose hover:bg-brand-rose/95 text-white rounded-lg text-xs font-semibold flex items-center gap-1.5 transition-colors"
                   >
@@ -143,15 +145,16 @@ export default function DeleteModal({ isOpen, onClose, simulation, onConfirm, pe
                   <label className="text-xs text-gray-400 block">
                     Please type the exact phrase <code className="bg-brand-card px-1.5 py-0.5 rounded text-brand-amber font-mono">{requiredPhrase}</code> below to confirm the cleanup:
                   </label>
-                  
-                  <input 
+
+                  <input
                     type="text"
                     value={typedConfirmation}
                     onChange={(e) => setTypedConfirmation(e.target.value)}
                     placeholder={`Type ${requiredPhrase} to proceed`}
+                    autoFocus
                     className="w-full bg-brand-darkest border border-brand-border rounded-lg px-3 py-2.5 font-semibold text-center focus:outline-none focus:border-brand-accent text-gray-200"
                   />
-                  
+
                   <p className="text-xs text-brand-rose/90 flex gap-2 pt-1">
                     <AlertTriangle className="h-4 w-4 flex-shrink-0" />
                     <span>This operation is irreversible after you click final execute.</span>
@@ -159,18 +162,18 @@ export default function DeleteModal({ isOpen, onClose, simulation, onConfirm, pe
                 </div>
 
                 <div className="flex gap-3 justify-end pt-4 border-t border-brand-border">
-                  <button 
+                  <button
                     onClick={() => setCurrentStep(1)}
                     className="px-4 py-2 bg-brand-card hover:bg-brand-card/80 border border-brand-border text-gray-300 rounded-lg text-xs font-semibold transition-colors"
                   >
                     Back
                   </button>
-                  <button 
+                  <button
                     onClick={handleFinalSubmit}
-                    disabled={typedConfirmation !== requiredPhrase}
+                    disabled={typedConfirmation.trim().toLowerCase() !== requiredPhrase}
                     className={`px-4 py-2 rounded-lg text-xs font-semibold flex items-center gap-1.5 transition-colors ${
-                      typedConfirmation === requiredPhrase 
-                        ? 'bg-brand-rose text-white hover:bg-brand-rose/95 cursor-pointer' 
+                      typedConfirmation.trim().toLowerCase() === requiredPhrase
+                        ? 'bg-brand-rose text-white hover:bg-brand-rose/95 cursor-pointer'
                         : 'bg-brand-card border border-brand-border text-gray-500 cursor-not-allowed'
                     }`}
                   >

@@ -45,7 +45,7 @@ export const useAppStore = create((set, get) => {
     deleteStatus: 'idle', // idle, deleting, completed
     deletedCount: 0,
     failedCount: 0,
-    activeSimulation: null, // Holds Smart Delete dry-run simulation data
+    activeSimulation: null,
 
     // Quarantine recoveries
     quarantineItems: [],
@@ -58,23 +58,46 @@ export const useAppStore = create((set, get) => {
     serviceError: null,
 
     // Real dynamic disk metrics & defaults
-    defaultDownloads: 'C:\\',
-    defaultDesktop: 'C:\\',
-    diskSpace: { total: 512 * 1024 * 1024 * 1024, free: 142 * 1024 * 1024 * 1024 },
+    defaultDownloads: '',
+    defaultDesktop: '',
+    diskSpace: { total: 0, free: 0 },
     fetchDiskSpace: () => {
       if (window.api) window.api.sendRequest('system:disk');
     },
 
-    // Background statistics for dashboard cards (safely cached in python)
+    // Recycle bin live data
+    recycleBinInfo: { size_bytes: 0, items_count: 0 },
+    fetchRecycleBin: () => {
+      if (window.api) window.api.sendRequest('recycle:query');
+    },
+
+    // Background statistics for dashboard cards
     dashboardStats: { temp_size_bytes: 0, temp_items_count: 0, browser_size_bytes: 0, browser_items_count: 0 },
     fetchDashboardStats: () => {
       if (window.api) window.api.sendRequest('system:dashboard_stats');
     },
 
+    // Global loading flag - true until backend startup response fully received
+    isSystemLoading: true,
+
     // Initialize API bridge listeners
-    initBridge: () => {
+    initBridge: (retryCount = 0) => {
       if (!window.api) {
-        console.warn("API Bridge not found. Running in browser mock mode.");
+        const isElectron = navigator.userAgent.toLowerCase().includes('electron');
+        if (isElectron) {
+          // In Electron, retry up to 50 times (10s) to give dev environments time to load preload scripts
+          if (retryCount < 50) {
+            console.warn(`SafeSweep Electron: API Bridge not found. Retrying in 200ms... (Attempt ${retryCount + 1}/50)`);
+            setTimeout(() => get().initBridge(retryCount + 1), 200);
+          } else {
+            console.error("SafeSweep Electron Error: Native API Bridge failed to load after 10 seconds.");
+            set({ serviceError: "Failed to connect to the local system service. Please restart the SafeSweep utility." });
+          }
+        } else {
+          // In a regular browser - no Electron API available, clear loader immediately
+          console.log("[SafeSweep] Running in browser (no Electron API). Desktop system data unavailable.");
+          set({ isSystemLoading: false });
+        }
         return;
       }
 
@@ -94,71 +117,183 @@ export const useAppStore = create((set, get) => {
             scannedBytes: params.total_size_bytes,
             scannedFiles: [...state.scannedFiles, ...params.files]
           }));
-        } else if (method === 'delete.progress') {
+        } else if (method === 'scanner.completed') {
+          // Scanner completed as notification (from DuplicateFinder)
+          set({
+            scanStatus: 'completed',
+            safeModeEnforced: params.safe_mode_enforced || false,
+            safetyWarning: params.warning || null
+          });
+        } else if (method === 'delete.progress' || method === 'deletion.progress') {
           set({
             deletedCount: params.deleted_count,
             failedCount: params.failed_count
           });
+        } else if (method === 'duplicates.progress') {
+          // Handled locally in DuplicateFinder component - no store update needed
+        } else if (method === 'duplicates.completed') {
+          set({
+            duplicatesList: params.duplicates || [],
+            duplicatesStatus: 'completed'
+          });
+        } else if (method === 'delete.completed') {
+          set({ deleteStatus: 'completed', activeSimulation: null });
+          get().fetchQuarantine();
         }
       });
 
       // 2. Process standard sidecar method responses
+      // Each response is identified by a unique 'tag' field we match for routing
       unsubscribeResponse = window.api.onResponse((packet) => {
-        const { error, result, id } = packet;
+        const { error, result } = packet;
 
         if (error) {
           console.error('IPC transaction error response received:', error);
-          set({ 
-            scanStatus: 'idle', 
+          set({
+            scanStatus: 'idle',
             deleteStatus: 'idle',
-            serviceError: error.message 
+            serviceError: error.message
           });
           return;
         }
 
         if (!result) return;
 
-        // Route actions based on result status fields or types
-        if (result.status === 'online') {
-          set({ 
-            exclusions: result.custom_exclusions,
-            defaultDownloads: result.downloads || 'C:\\',
-            defaultDesktop: result.desktop || 'C:\\'
+        // --- Route by unique field presence - order matters (most specific first) ---
+
+        // system.startup response
+        if (result.status === 'online' && result.user_profile !== undefined) {
+          set({
+            exclusions: result.custom_exclusions || [],
+            defaultDownloads: result.downloads || '',
+            defaultDesktop: result.desktop || ''
           });
-        } else if (result.total !== undefined && result.free !== undefined) {
-          // Process real dynamic disk spaces
-          set({ diskSpace: result });
-        } else if (result.temp_size_bytes !== undefined && result.browser_size_bytes !== undefined) {
-          // Process cached dashboard statistics
+          // After startup, fire all live data fetches
+          get().fetchDiskSpace();
+          get().fetchDashboardStats();
+          get().fetchRecycleBin();
+          get().fetchQuarantine();
+          // Local IPC is fast - clear loader immediately after dispatching fetches
+          set({ isSystemLoading: false });
+          return;
+        }
+
+        // system.disk_space response (has total + free, no status field)
+        if (result.total !== undefined && result.free !== undefined && result.status === undefined) {
+          set({ diskSpace: { total: result.total, free: result.free } });
+          return;
+        }
+
+        // system.dashboard_stats response
+        if (result.temp_size_bytes !== undefined && result.browser_size_bytes !== undefined) {
           set({ dashboardStats: result });
-        } else if (result.status === 'scan_started') {
-          set({ 
-            scanStatus: 'scanning', 
-            scannedCount: 0, 
-            scannedBytes: 0, 
-            scannedFiles: [], 
+          return;
+        }
+
+        // recycle_bin.query response (has size_bytes + items_count, no status)
+        if (result.size_bytes !== undefined && result.items_count !== undefined && result.status === undefined) {
+          set({ recycleBinInfo: { size_bytes: result.size_bytes, items_count: result.items_count } });
+          return;
+        }
+
+        // recycle_bin.empty response
+        if (result.success !== undefined && result.status === undefined && result.deleted === undefined) {
+          // Refresh recycle bin data after emptying
+          if (result.success) {
+            get().fetchRecycleBin();
+          }
+          return;
+        }
+
+        // scanner.start_scan response
+        if (result.status === 'scan_started') {
+          set({
+            scanStatus: 'scanning',
+            scannedCount: 0,
+            scannedBytes: 0,
+            scannedFiles: [],
             safeModeEnforced: false,
             safetyWarning: null
           });
-        } else if (result.status === 'completed' && result.files_found_count !== undefined) {
-          // Scanner complete
-          set({ 
+          return;
+        }
+
+        // scanner completed (returned as response not notification)
+        if (result.status === 'completed' && result.files_found_count !== undefined) {
+          set({
             scanStatus: 'completed',
-            safeModeEnforced: result.safe_mode_enforced,
-            safetyWarning: result.warning
+            safeModeEnforced: result.safe_mode_enforced || false,
+            safetyWarning: result.warning || null
           });
-        } else if (result.status === 'delete_started') {
+          return;
+        }
+
+        // scanner cancel response
+        if (result.status === 'scan_cancelled' || result.status === 'no_active_scan') {
+          set({ scanStatus: 'cancelled' });
+          return;
+        }
+
+        // delete.start_delete response
+        if (result.status === 'delete_started') {
           set({ deleteStatus: 'deleting', deletedCount: 0, failedCount: 0 });
-        } else if (result.status === 'completed' && result.deleted !== undefined) {
-          // Deletion complete
+          return;
+        }
+
+        // delete completed (returned as response)
+        if (result.status === 'completed' && result.deleted !== undefined) {
           set({ deleteStatus: 'completed', activeSimulation: null });
           get().fetchQuarantine();
-        } else if (result.duplicates !== undefined) {
-          set({ duplicatesList: result.duplicates, duplicatesStatus: 'completed' });
-        } else if (result.exclusions !== undefined) {
-          set({ exclusions: result.exclusions });
-        } else if (result.quarantine !== undefined) {
-          set({ quarantineItems: result.quarantine });
+          return;
+        }
+
+        // delete cancel response
+        if (result.status === 'delete_cancelled' || result.status === 'no_active_delete') {
+          set({ deleteStatus: 'idle' });
+          return;
+        }
+
+        // duplicates.start_scan response
+        if (result.status === 'duplicate_scan_started') {
+          set({ duplicatesStatus: 'scanning', duplicatesList: [] });
+          return;
+        }
+
+        // duplicates completed (returned as response)
+        if (result.duplicates !== undefined) {
+          set({ duplicatesList: result.duplicates || [], duplicatesStatus: 'completed' });
+          return;
+        }
+
+        // exclusions.list response
+        if (result.exclusions !== undefined) {
+          set({ exclusions: result.exclusions || [] });
+          return;
+        }
+
+        // exclusions.add / exclusions.remove response - re-fetch list
+        if (result.success !== undefined && result.status === undefined && result.deleted === undefined && result.size_bytes === undefined) {
+          // This is an add/remove exclusion response - refresh exclusions
+          get().fetchExclusions();
+          return;
+        }
+
+        // quarantine.list response
+        if (result.quarantine !== undefined) {
+          set({ quarantineItems: result.quarantine || [] });
+          return;
+        }
+
+        // quarantine.restore response
+        if (result.restored_path !== undefined) {
+          get().fetchQuarantine();
+          return;
+        }
+
+        // browser.scan_caches response (array of objects)
+        if (Array.isArray(result)) {
+          // Browser scan results - not stored in global state, handled by component
+          return;
         }
       });
 
@@ -172,6 +307,9 @@ export const useAppStore = create((set, get) => {
       unsubscribeError = window.api.onError((packet) => {
         set({ serviceError: packet.message });
       });
+
+      // Query the backend startup diagnostics immediately on connection
+      window.api.sendRequest('system:startup');
     },
 
     startScan: (targetPath) => {
@@ -184,12 +322,8 @@ export const useAppStore = create((set, get) => {
       set({ scanStatus: 'cancelled' });
     },
 
-    // Execute dry-run Smart Delete simulation
+    // Execute dry-run Smart Delete simulation - runs locally in UI
     runDeleteSimulation: (selectedPaths) => {
-      // The dry-run simulation occurs locally on the sidecar before actual delete commits.
-      // We pass the selection list to compile warnings.
-      // For this implementation, we simulate it directly in the UI store by checking 
-      // paths, risk classifications, and metadata lock values.
       const files = get().scannedFiles.filter(f => selectedPaths.includes(f.path));
       const files_to_remove = [];
       const files_skipped = [];
@@ -199,11 +333,12 @@ export const useAppStore = create((set, get) => {
 
       files.forEach(f => {
         if (f.risk === 'CRITICAL') {
-          protected_ignored.append({ path: f.path, reason: 'Protected System Element' });
+          // FIX: was protected_ignored.append() - Python syntax! JS uses .push()
+          protected_ignored.push({ path: f.path, reason: 'Protected System Element' });
           risk_summary.CRITICAL++;
         } else {
-          total_freed_bytes += f.size;
-          risk_summary[f.risk]++;
+          total_freed_bytes += (f.size || 0);
+          risk_summary[f.risk] = (risk_summary[f.risk] || 0) + 1;
           files_to_remove.push(f);
         }
       });
@@ -236,15 +371,25 @@ export const useAppStore = create((set, get) => {
       if (window.api) window.api.sendRequest('quarantine:restore', { id: itemId, customDestination: destination });
     },
 
-    // Add and remove custom exclusions
+    // Add and remove custom exclusions - optimistic update + backend sync
     addExclusion: (exclusionPath) => {
+      if (!exclusionPath) return;
       if (window.api) window.api.sendRequest('exclusions:add', { path: exclusionPath });
-      setTimeout(() => get().fetchExclusions(), 500);
+      // Optimistic update
+      set((state) => ({
+        exclusions: state.exclusions.includes(exclusionPath)
+          ? state.exclusions
+          : [...state.exclusions, exclusionPath]
+      }));
     },
 
     removeExclusion: (exclusionPath) => {
+      if (!exclusionPath) return;
       if (window.api) window.api.sendRequest('exclusions:remove', { path: exclusionPath });
-      setTimeout(() => get().fetchExclusions(), 500);
+      // Optimistic update - remove immediately from UI
+      set((state) => ({
+        exclusions: state.exclusions.filter(e => e !== exclusionPath)
+      }));
     }
   };
 });

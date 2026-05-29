@@ -10,11 +10,14 @@ class SHQUERYRBINFO(ctypes.Structure):
     ]
 
 # Explicitly declare ctypes prototypes for 64-bit safe registry execution
-ctypes.windll.shell32.SHQueryRecycleBinW.argtypes = [ctypes.c_wchar_p, ctypes.POINTER(SHQUERYRBINFO)]
-ctypes.windll.shell32.SHQueryRecycleBinW.restype = ctypes.c_long
+try:
+    ctypes.windll.shell32.SHQueryRecycleBinW.argtypes = [ctypes.c_wchar_p, ctypes.POINTER(SHQUERYRBINFO)]
+    ctypes.windll.shell32.SHQueryRecycleBinW.restype = ctypes.c_long
 
-ctypes.windll.shell32.SHEmptyRecycleBinW.argtypes = [wintypes.HWND, ctypes.c_wchar_p, wintypes.DWORD]
-ctypes.windll.shell32.SHEmptyRecycleBinW.restype = ctypes.c_long
+    ctypes.windll.shell32.SHEmptyRecycleBinW.argtypes = [wintypes.HWND, ctypes.c_wchar_p, wintypes.DWORD]
+    ctypes.windll.shell32.SHEmptyRecycleBinW.restype = ctypes.c_long
+except Exception as e:
+    logger.error("Failed to map Recycle Bin ctypes", {"error": str(e)})
 
 def query_recycle_bin():
     """
@@ -25,15 +28,16 @@ def query_recycle_bin():
     info.cbSize = ctypes.sizeof(SHQUERYRBINFO)
 
     try:
-        # Query the main system C drive explicitly to avoid empty drive locks
-        result = ctypes.windll.shell32.SHQueryRecycleBinW("C:\\", ctypes.byref(info))
+        # Query the main system C drive explicitly
+        # Passing None (or empty string) queries all drives' recycle bins.
+        result = ctypes.windll.shell32.SHQueryRecycleBinW(None, ctypes.byref(info))
         if result != 0:
             logger.warn("Native SHQueryRecycleBinW query returned non-zero system flag.", {"result": result})
             return {"size_bytes": 0, "items_count": 0}
             
         return {
-            "size_bytes": info.i64Size,
-            "items_count": info.i64NumItems
+            "size_bytes": int(info.i64Size),
+            "items_count": int(info.i64NumItems)
         }
     except Exception as e:
         logger.error("Failed to natively query Windows Recycle Bin.", {"error": str(e)})
@@ -42,11 +46,6 @@ def query_recycle_bin():
 def empty_recycle_bin(show_progress=False, confirm=False):
     """
     Natively purges the Windows Recycle Bin using SHEmptyRecycleBinW ctypes bindings.
-    
-    Flags:
-        SHERB_NOCONFIRMATION = 0x00000001
-        SHERB_NOPROGRESSUI   = 0x00000002
-        SHERB_NOSOUND        = 0x00000004
     """
     SHERB_NOCONFIRMATION = 0x00000001
     SHERB_NOPROGRESSUI = 0x00000002
@@ -60,10 +59,8 @@ def empty_recycle_bin(show_progress=False, confirm=False):
     flags |= SHERB_NOSOUND
 
     try:
-        # SHEmptyRecycleBinW(hwnd, pszRootPath, dwFlags)
         result = ctypes.windll.shell32.SHEmptyRecycleBinW(None, None, flags)
         if result != 0:
-            # S_OK is 0. If it fails (e.g. user cancelled), returns HRESULT
             logger.warn("Native SHEmptyRecycleBinW returned non-zero code.", {"result": result})
             return False
         return True

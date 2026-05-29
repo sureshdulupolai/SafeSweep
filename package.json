@@ -10,8 +10,10 @@
     "build": "npm run build:ui && npm run build:sidecar",
     "preview": "vite preview",
     "electron:start": "electron .",
+    "preelectron:dev": "powershell -Command \"$p = netstat -ano | Select-String ':5173\\s' | ForEach-Object { ($_ -split '\\s+')[-1] } | Select-Object -First 1; if ($p) { taskkill /PID $p /F 2>$null }; Start-Sleep -Milliseconds 300\"",
     "electron:dev": "concurrently \"npm run dev\" \"wait-on http://localhost:5173 && electron .\"",
     "dist": "electron-builder"
+
   },
   "keywords": [
     "utility",

@@ -293,28 +293,23 @@ def handle_developer_mode(params):
     logger.warn(f"Developer Mode toggled: {enabled}")
     return {"developer_mode": enabled}
 
-import ctypes
+import shutil
 @dispatcher.register("system.disk_space")
 def handle_disk_space(params):
+    r"""
+    Queries the real total capacity and actual free space of the C:\ drive
+    using standard python library fallback. No static defaults allowed.
     """
-    Natively queries the real total capacity and actual free space of the C:\ drive
-    using Windows GetDiskFreeSpaceExW ctypes bindings.
-    """
-    free_avail = ctypes.c_ulonglong(0)
-    total = ctypes.c_ulonglong(0)
-    total_free = ctypes.c_ulonglong(0)
-    success = ctypes.windll.kernel32.GetDiskFreeSpaceExW(
-        "C:\\",
-        ctypes.byref(free_avail),
-        ctypes.byref(total),
-        ctypes.byref(total_free)
-    )
-    if not success:
-        return {"total": 512 * 1024 * 1024 * 1024, "free": 142 * 1024 * 1024 * 1024}
-    return {
-        "total": total.value,
-        "free": total_free.value
-    }
+    try:
+        usage = shutil.disk_usage("C:\\")
+        return {
+            "total": usage.total,
+            "free": usage.free
+        }
+    except Exception as e:
+        logger.error("Failed to query disk space.", {"error": str(e)})
+        # If absolute failure, return 0 to indicate unknown rather than fake static data
+        return {"total": 0, "free": 0}
 
 @dispatcher.register("system.dashboard_stats")
 def handle_dashboard_stats(params):

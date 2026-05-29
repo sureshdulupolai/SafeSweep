@@ -36,7 +36,7 @@ export default function App() {
               <Cpu className="h-4 w-4 text-white" />
             </div>
             <div>
-              <h1 className="font-bold text-sm tracking-tight text-gray-100">AI Smart PC Cleaner</h1>
+              <h1 className="font-bold text-sm tracking-tight text-gray-100">SafeSweep</h1>
               <span className="text-[10px] text-gray-500 font-semibold uppercase tracking-wider block">Production Utility</span>
             </div>
           </div>

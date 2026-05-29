@@ -6,7 +6,7 @@ from utils.logger import logger
 from error_classification import CleanerError
 
 class DatabaseManager:
-    def __init__(self, db_name="cleaner_settings.db", app_name="AICleaner"):
+    def __init__(self, db_name="cleaner_settings.db", app_name="SafeSweep"):
         self.db_name = db_name
         self.app_name = app_name
         self.db_dir = self._initialize_db_dir()

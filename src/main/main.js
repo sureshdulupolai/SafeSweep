@@ -80,6 +80,12 @@ ipcMain.on('ipc:request', (event, packet) => {
       case 'system:startup':
         rpcMethod = 'system.startup';
         break;
+      case 'system:disk':
+        rpcMethod = 'system.disk_space';
+        break;
+      case 'system:dashboard_stats':
+        rpcMethod = 'system.dashboard_stats';
+        break;
       case 'scanner:start':
         rpcMethod = 'scanner.start_scan';
         rpcParams = { path: data.path, scan_mode: data.scanMode };
@@ -102,10 +108,10 @@ ipcMain.on('ipc:request', (event, packet) => {
         rpcMethod = 'browser.scan_caches';
         break;
       case 'recycle:query':
-        rpcMethod = 'recycle.query';
+        rpcMethod = 'recycle_bin.query';
         break;
       case 'recycle:empty':
-        rpcMethod = 'recycle.empty';
+        rpcMethod = 'recycle_bin.empty';
         rpcParams = { confirm: data.confirm };
         break;
       case 'exclusions:list':

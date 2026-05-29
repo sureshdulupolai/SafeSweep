@@ -9,7 +9,7 @@ from safety import normalize_windows_path
 from error_classification import CleanerError, PermissionDenied, wrap_sys_error
 
 class QuarantineManager:
-    def __init__(self, app_name="AICleaner"):
+    def __init__(self, app_name="SafeSweep"):
         self.app_name = app_name
         self.quarantine_dir = self._initialize_quarantine_dir()
         self.retention_hours = 24  # Default quarantine retention window

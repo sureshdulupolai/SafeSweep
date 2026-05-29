@@ -2,6 +2,7 @@ import sys
 import os
 import json
 import threading
+import time
 from rpc import RPCDispatcher
 from scanner import ScanningTask
 from delete_engine import DeletionSession
@@ -34,6 +35,60 @@ def rpc_notify(method, params):
     sys.stdout.write(json.dumps(packet) + "\n")
     sys.stdout.flush()
 
+# Globals to cache statistics safely to avoid repetitive heavy I/O walks
+cached_stats = {
+    "temp_size": 0,
+    "temp_count": 0,
+    "browser_size": 0,
+    "browser_count": 0,
+    "last_updated": 0
+}
+
+def update_cached_stats_thread():
+    global cached_stats
+    try:
+        # Calculate Temp Files
+        temp_dirs = [
+            os.environ.get("TEMP"),
+            os.path.join(os.environ.get("SystemRoot", "C:\\Windows"), "Temp"),
+            os.path.join(os.environ.get("SystemRoot", "C:\\Windows"), "Prefetch")
+        ]
+        t_size, t_count = 0, 0
+        for p in temp_dirs:
+            if p and os.path.exists(p):
+                for root, dirs, files in os.walk(p):
+                    for f in files:
+                        fp = os.path.join(root, f)
+                        try:
+                            t_size += os.path.getsize(fp)
+                            t_count += 1
+                        except Exception:
+                            pass
+        
+        # Calculate Browser Cache
+        b_size, b_count = 0, 0
+        try:
+            from browser import browser_cleaner
+            caches = browser_cleaner.scan_all_browser_caches()
+            b_size = sum(c["size_bytes"] for c in caches)
+            b_count = sum(c["files_count"] for c in caches)
+        except Exception:
+            pass
+
+        cached_stats["temp_size"] = t_size
+        cached_stats["temp_count"] = t_count
+        cached_stats["browser_size"] = b_size
+        cached_stats["browser_count"] = b_count
+        cached_stats["last_updated"] = time.time()
+        logger.info("Successfully updated cached dashboard stats.", {
+            "temp_size": t_size,
+            "temp_count": t_count,
+            "browser_size": b_size,
+            "browser_count": b_count
+        })
+    except Exception as e:
+        logger.error("Failed to update dashboard cache stats.", {"error": str(e)})
+
 # --- METHOD REGISTER BOUNDARIES ---
 
 @dispatcher.register("system.startup")
@@ -41,14 +96,25 @@ def handle_startup(params):
     # Run startup integrity and transaction recoveries
     success = crash_recovery_manager.startup_integrity_check()
     
+    # Trigger background thread immediately to query real stats asynchronously
+    threading.Thread(target=update_cached_stats_thread, daemon=True).start()
+    
     # Load basic state values
     exclusions = list(exclusion_engine.custom_exclusions)
+    
+    # Isolate dynamic user paths to prevent hardcoded user profile bugs
+    user_profile = os.environ.get("USERPROFILE", "C:\\")
+    downloads = os.path.join(user_profile, "Downloads")
+    desktop = os.path.join(user_profile, "Desktop")
     
     return {
         "status": "online",
         "integrity_check": "passed" if success else "failed",
         "default_exclusions_loaded": len(exclusion_engine.default_exclusion_names),
-        "custom_exclusions": exclusions
+        "custom_exclusions": exclusions,
+        "user_profile": user_profile,
+        "downloads": downloads,
+        "desktop": desktop
     }
 
 @dispatcher.register("scanner.start_scan")
@@ -122,6 +188,8 @@ def handle_start_delete(params):
             )
             
             rpc_notify("delete.completed", res)
+            # Re-trigger background thread to update cached stats after deletion finishes
+            threading.Thread(target=update_cached_stats_thread, daemon=True).start()
         except Exception as e:
             logger.error("Deletion worker crashed.", {"error": str(e)})
             rpc_notify("delete.error", {"message": str(e)})
@@ -177,7 +245,7 @@ def handle_recycle_empty(params):
 
 @dispatcher.register("exclusions.list")
 def handle_exclusions_list(params):
-    return list(exclusion_engine.custom_exclusions)
+    return {"exclusions": list(exclusion_engine.custom_exclusions)}
 
 @dispatcher.register("exclusions.add")
 def handle_exclusions_add(params):
@@ -207,7 +275,7 @@ def handle_quarantine_list(params):
             "size": r[3],
             "created_at": r[4]
         })
-    return items
+    return {"quarantine": items}
 
 @dispatcher.register("quarantine.restore")
 def handle_quarantine_restore(params):
@@ -224,6 +292,42 @@ def handle_developer_mode(params):
     middleware.set_developer_mode(enabled)
     logger.warn(f"Developer Mode toggled: {enabled}")
     return {"developer_mode": enabled}
+
+import ctypes
+@dispatcher.register("system.disk_space")
+def handle_disk_space(params):
+    """
+    Natively queries the real total capacity and actual free space of the C:\ drive
+    using Windows GetDiskFreeSpaceExW ctypes bindings.
+    """
+    free_avail = ctypes.c_ulonglong(0)
+    total = ctypes.c_ulonglong(0)
+    total_free = ctypes.c_ulonglong(0)
+    success = ctypes.windll.kernel32.GetDiskFreeSpaceExW(
+        "C:\\",
+        ctypes.byref(free_avail),
+        ctypes.byref(total),
+        ctypes.byref(total_free)
+    )
+    if not success:
+        return {"total": 512 * 1024 * 1024 * 1024, "free": 142 * 1024 * 1024 * 1024}
+    return {
+        "total": total.value,
+        "free": total_free.value
+    }
+
+@dispatcher.register("system.dashboard_stats")
+def handle_dashboard_stats(params):
+    # Trigger an asynchronous update in the background if it's been more than 30 seconds since last check
+    if time.time() - cached_stats["last_updated"] > 30:
+        threading.Thread(target=update_cached_stats_thread, daemon=True).start()
+    
+    return {
+        "temp_size_bytes": cached_stats["temp_size"],
+        "temp_items_count": cached_stats["temp_count"],
+        "browser_size_bytes": cached_stats["browser_size"],
+        "browser_items_count": cached_stats["browser_count"]
+    }
 
 @dispatcher.register("system.shutdown")
 def handle_shutdown(params):

@@ -28,16 +28,15 @@ export default function DeleteModal({ isOpen, onClose, simulation, onConfirm, pe
     return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i];
   };
 
-  // Determine if this is an elevated risk large cleanup
-  const isLargeCleanup = totalFiles > 100000 || totalBytes > 50 * 1024 * 1024 * 1024; // 100k files or 50 GB
-  const requiredPhrase = isLargeCleanup ? 'CONFIRM LARGE CLEANUP' : 'DELETE';
+  // Standardize the required verification phrase to "delete" for user friendliness
+  const requiredPhrase = 'delete';
 
   const handleNextStep = () => {
     setCurrentStep(2);
   };
 
   const handleFinalSubmit = () => {
-    if (typedConfirmation === requiredPhrase) {
+    if (typedConfirmation.trim().toLowerCase() === 'delete') {
       onConfirm(permanent);
       onClose();
     }

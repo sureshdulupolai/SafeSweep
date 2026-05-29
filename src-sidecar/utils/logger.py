@@ -38,7 +38,7 @@ def mask_sensitive_paths(path_str):
     return os.sep.join(parts)
 
 class PrivacyLogger:
-    def __init__(self, app_name="AICleaner"):
+    def __init__(self, app_name="SafeSweep"):
         self.app_name = app_name
         self.log_dir = self._initialize_log_dir()
         self.log_file_path = os.path.join(self.log_dir, f"app_{datetime.date.today().isoformat()}.log")

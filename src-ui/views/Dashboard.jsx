@@ -12,19 +12,39 @@ export default function Dashboard() {
   const setActivePanel = useAppStore((state) => state.setActivePanel);
 
   const [recycleBinInfo, setRecycleBinInfo] = useState({ size_bytes: 0, items_count: 0 });
+  const diskSpace = useAppStore((state) => state.diskSpace);
+  const fetchDiskSpace = useAppStore((state) => state.fetchDiskSpace);
+  const dashboardStats = useAppStore((state) => state.dashboardStats);
+  const fetchDashboardStats = useAppStore((state) => state.fetchDashboardStats);
 
   useEffect(() => {
-    // Natively query the Recycle Bin sizes on load to populate the dashboard analytics
-    try {
+    // 1. Natively query Recycle Bin, Disk Space, and Dashboard stats immediately on mount
+    if (window.api) {
       window.api.sendRequest('recycle:query');
-      const unsubscribe = window.api.onResponse((packet) => {
-        if (packet.result && packet.result.size_bytes !== undefined) {
-          setRecycleBinInfo(packet.result);
-        }
-      });
-      return unsubscribe;
-    } catch (e) {}
-  }, []);
+      fetchDashboardStats();
+    }
+    fetchDiskSpace();
+
+    // 2. Establish dynamic 3-second polling intervals to keep data live if user unlinks manually
+    const interval = setInterval(() => {
+      if (window.api) {
+        window.api.sendRequest('recycle:query');
+        fetchDashboardStats();
+      }
+      fetchDiskSpace();
+    }, 3000);
+
+    const unsubscribe = window.api ? window.api.onResponse((packet) => {
+      if (packet.result && packet.result.size_bytes !== undefined) {
+        setRecycleBinInfo(packet.result);
+      }
+    }) : () => {};
+
+    return () => {
+      clearInterval(interval);
+      unsubscribe();
+    };
+  }, [fetchDiskSpace, fetchDashboardStats]);
 
   const handleScanTrigger = () => {
     startScan('C:\\'); // Default main root scan C:\
@@ -39,9 +59,9 @@ export default function Dashboard() {
     return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i];
   };
 
-  // Mock disk statistics to draw the premium circular capacity visuals
-  const diskTotal = 512 * 1024 * 1024 * 1024; // 512 GB
-  const diskFree = 142 * 1024 * 1024 * 1024;  // 142 GB
+  // Real C:\ disk statistics representing active system volume spaces
+  const diskTotal = diskSpace.total;
+  const diskFree = diskSpace.free;
   const diskUsed = diskTotal - diskFree;
   const diskPercentage = (diskUsed / diskTotal) * 100;
 
@@ -105,7 +125,7 @@ export default function Dashboard() {
             <div className="grid grid-cols-2 gap-4 border-t border-brand-border pt-4 text-xs font-mono">
               <div>
                 <span className="text-gray-500 block">Total Capacity</span>
-                <span className="font-semibold text-gray-300 mt-1 block">512.0 GB</span>
+                <span className="font-semibold text-gray-300 mt-1 block">{formatBytes(diskTotal)}</span>
               </div>
               <div>
                 <span className="text-gray-500 block">Remaining Free</span>
@@ -156,8 +176,8 @@ export default function Dashboard() {
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
         {[
           { label: 'Recycle Bin Size', value: formatBytes(recycleBinInfo.size_bytes), desc: `${recycleBinInfo.items_count} files queued`, icon: HardDrive, color: 'text-brand-accent' },
-          { label: 'Temporary Files', value: '4.8 GB', desc: '%TEMP%, Windows Temp, Prefetch', icon: RefreshCw, color: 'text-brand-amber' },
-          { label: 'Browser Caches', value: '2.1 GB', desc: 'Chromium Caches, Firefox cache2', icon: Layers, color: 'text-brand-green' },
+          { label: 'Temporary Files', value: formatBytes(dashboardStats.temp_size_bytes), desc: `${dashboardStats.temp_items_count} files queued`, icon: RefreshCw, color: 'text-brand-amber' },
+          { label: 'Browser Caches', value: formatBytes(dashboardStats.browser_size_bytes), desc: `${dashboardStats.browser_items_count} files queued`, icon: Layers, color: 'text-brand-green' },
           { label: 'Exclusion Filters', value: '9 categories', desc: '.git, node_modules, VMs active', icon: ShieldAlert, color: 'text-gray-400' }
         ].map((stat, idx) => (
           <div key={idx} className="glass-card p-4 flex items-center justify-between border border-brand-border">

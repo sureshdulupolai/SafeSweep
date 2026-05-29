@@ -16,7 +16,7 @@ export const useAppStore = create((set, get) => {
     developerMode: false,
     setDeveloperMode: (enabled) => {
       set({ developerMode: enabled });
-      window.api.sendRequest('developer:setMode', { enabled });
+      if (window.api) window.api.sendRequest('developer:setMode', { enabled });
     },
 
     // Scan priority levels (quick, balanced, deep)
@@ -25,7 +25,9 @@ export const useAppStore = create((set, get) => {
 
     // Custom exclusion list paths
     exclusions: [],
-    fetchExclusions: () => window.api.sendRequest('exclusions:list'),
+    fetchExclusions: () => {
+      if (window.api) window.api.sendRequest('exclusions:list');
+    },
 
     // Scan progress statuses
     scanStatus: 'idle', // idle, scanning, completed, cancelled
@@ -47,14 +49,35 @@ export const useAppStore = create((set, get) => {
 
     // Quarantine recoveries
     quarantineItems: [],
-    fetchQuarantine: () => window.api.sendRequest('quarantine:list'),
+    fetchQuarantine: () => {
+      if (window.api) window.api.sendRequest('quarantine:list');
+    },
 
     // System alerts from Watchdog
     serviceWarning: null,
     serviceError: null,
 
+    // Real dynamic disk metrics & defaults
+    defaultDownloads: 'C:\\',
+    defaultDesktop: 'C:\\',
+    diskSpace: { total: 512 * 1024 * 1024 * 1024, free: 142 * 1024 * 1024 * 1024 },
+    fetchDiskSpace: () => {
+      if (window.api) window.api.sendRequest('system:disk');
+    },
+
+    // Background statistics for dashboard cards (safely cached in python)
+    dashboardStats: { temp_size_bytes: 0, temp_items_count: 0, browser_size_bytes: 0, browser_items_count: 0 },
+    fetchDashboardStats: () => {
+      if (window.api) window.api.sendRequest('system:dashboard_stats');
+    },
+
     // Initialize API bridge listeners
     initBridge: () => {
+      if (!window.api) {
+        console.warn("API Bridge not found. Running in browser mock mode.");
+        return;
+      }
+
       // Clean previous subscriptions if re-initializing
       if (unsubscribeNotify) unsubscribeNotify();
       if (unsubscribeResponse) unsubscribeResponse();
@@ -97,7 +120,17 @@ export const useAppStore = create((set, get) => {
 
         // Route actions based on result status fields or types
         if (result.status === 'online') {
-          set({ exclusions: result.custom_exclusions });
+          set({ 
+            exclusions: result.custom_exclusions,
+            defaultDownloads: result.downloads || 'C:\\',
+            defaultDesktop: result.desktop || 'C:\\'
+          });
+        } else if (result.total !== undefined && result.free !== undefined) {
+          // Process real dynamic disk spaces
+          set({ diskSpace: result });
+        } else if (result.temp_size_bytes !== undefined && result.browser_size_bytes !== undefined) {
+          // Process cached dashboard statistics
+          set({ dashboardStats: result });
         } else if (result.status === 'scan_started') {
           set({ 
             scanStatus: 'scanning', 
@@ -122,15 +155,10 @@ export const useAppStore = create((set, get) => {
           get().fetchQuarantine();
         } else if (result.duplicates !== undefined) {
           set({ duplicatesList: result.duplicates, duplicatesStatus: 'completed' });
-        } else if (Array.isArray(result)) {
-          // It's either an exclusions list or quarantine items array
-          // check if they are exclusions or quarantine
-          if (result.length === 0) return;
-          if (result[0].id !== undefined) {
-            set({ quarantineItems: result });
-          } else {
-            set({ exclusions: result });
-          }
+        } else if (result.exclusions !== undefined) {
+          set({ exclusions: result.exclusions });
+        } else if (result.quarantine !== undefined) {
+          set({ quarantineItems: result.quarantine });
         }
       });
 
@@ -146,14 +174,13 @@ export const useAppStore = create((set, get) => {
       });
     },
 
-    // Trigger scanning calls
     startScan: (targetPath) => {
       set({ scanStatus: 'scanning' });
-      window.api.sendRequest('scanner:start', { path: targetPath, scanMode: get().scanMode });
+      if (window.api) window.api.sendRequest('scanner:start', { path: targetPath, scanMode: get().scanMode });
     },
 
     cancelScan: () => {
-      window.api.sendRequest('scanner:cancel');
+      if (window.api) window.api.sendRequest('scanner:cancel');
       set({ scanStatus: 'cancelled' });
     },
 
@@ -197,26 +224,26 @@ export const useAppStore = create((set, get) => {
     // Deletion executions
     startDeletion: (targets, permanent = false) => {
       set({ deleteStatus: 'deleting' });
-      window.api.sendRequest('delete:start', { targets, permanent });
+      if (window.api) window.api.sendRequest('delete:start', { targets, permanent });
     },
 
     cancelDeletion: () => {
-      window.api.sendRequest('delete:cancel');
+      if (window.api) window.api.sendRequest('delete:cancel');
     },
 
     // Quarantine restorations
     restoreQuarantineItem: (itemId, destination = null) => {
-      window.api.sendRequest('quarantine:restore', { id: itemId, customDestination: destination });
+      if (window.api) window.api.sendRequest('quarantine:restore', { id: itemId, customDestination: destination });
     },
 
     // Add and remove custom exclusions
     addExclusion: (exclusionPath) => {
-      window.api.sendRequest('exclusions:add', { path: exclusionPath });
+      if (window.api) window.api.sendRequest('exclusions:add', { path: exclusionPath });
       setTimeout(() => get().fetchExclusions(), 500);
     },
 
     removeExclusion: (exclusionPath) => {
-      window.api.sendRequest('exclusions:remove', { path: exclusionPath });
+      if (window.api) window.api.sendRequest('exclusions:remove', { path: exclusionPath });
       setTimeout(() => get().fetchExclusions(), 500);
     }
   };

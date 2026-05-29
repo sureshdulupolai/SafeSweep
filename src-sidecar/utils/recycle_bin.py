@@ -9,6 +9,13 @@ class SHQUERYRBINFO(ctypes.Structure):
         ("i64NumItems", ctypes.c_int64)
     ]
 
+# Explicitly declare ctypes prototypes for 64-bit safe registry execution
+ctypes.windll.shell32.SHQueryRecycleBinW.argtypes = [ctypes.c_wchar_p, ctypes.POINTER(SHQUERYRBINFO)]
+ctypes.windll.shell32.SHQueryRecycleBinW.restype = ctypes.c_long
+
+ctypes.windll.shell32.SHEmptyRecycleBinW.argtypes = [wintypes.HWND, ctypes.c_wchar_p, wintypes.DWORD]
+ctypes.windll.shell32.SHEmptyRecycleBinW.restype = ctypes.c_long
+
 def query_recycle_bin():
     """
     Natively queries the total file count and size (in bytes) of the active Windows
@@ -18,8 +25,8 @@ def query_recycle_bin():
     info.cbSize = ctypes.sizeof(SHQUERYRBINFO)
 
     try:
-        # SHQueryRecycleBinW can take None/NULL to query the default system recycle bin
-        result = ctypes.windll.shell32.SHQueryRecycleBinW(None, ctypes.byref(info))
+        # Query the main system C drive explicitly to avoid empty drive locks
+        result = ctypes.windll.shell32.SHQueryRecycleBinW("C:\\", ctypes.byref(info))
         if result != 0:
             logger.warn("Native SHQueryRecycleBinW query returned non-zero system flag.", {"result": result})
             return {"size_bytes": 0, "items_count": 0}

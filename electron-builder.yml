@@ -1,5 +1,5 @@
-appId: "com.antigravity.aicleaner"
-productName: "AI Smart PC Cleaner"
+appId: "com.antigravity.safesweep"
+productName: "SafeSweep"
 copyright: "Copyright © 2026 Antigravity. All rights reserved."
 
 directories:
@@ -32,4 +32,4 @@ nsis:
   runAfterFinish: true
   installerIcon: "build/icon.ico"
   uninstallerIcon: "build/icon.ico"
-  uninstallDisplayName: "AI Smart PC Cleaner"
+  uninstallDisplayName: "SafeSweep"

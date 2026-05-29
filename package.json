@@ -1,5 +1,5 @@
 {
-  "name": "ai-smart-pc-cleaner",
+  "name": "safesweep",
   "version": "1.0.0",
   "description": "Premium, offline-first, and safety-focused Windows desktop utility.",
   "main": "src/main/main.js",

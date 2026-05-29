@@ -55,8 +55,9 @@ PROTECTED_EXTENSIONS = {
 def normalize_windows_path(path_str):
     """
     Normalizes paths for Windows filesystem traversal.
-    Translates relative routes to absolute structures and prefixes 
-    long paths with \\\\?\\ to bypass MAX_PATH (260-char) boundaries safely.
+    Translates relative routes to absolute structures. Prefixes 
+    long paths with \\\\?\\ ONLY if the length exceeds 240 characters
+    to bypass MAX_PATH limits without breaking standard os.scandir calls.
     """
     if not path_str:
         return ""
@@ -67,16 +68,18 @@ def normalize_windows_path(path_str):
     # Convert to absolute path
     abs_path = os.path.abspath(path_str)
     
-    # Prefix with extended-length indicator if not already done
-    if abs_path.startswith("\\\\"):
-        # If it's a UNC share
-        if not abs_path.startswith("\\\\?\\UNC\\") and not abs_path.startswith("\\\\?\\"):
-            if abs_path.upper().startswith(r"\\WSL$"):
-                # Avoid prefixing WSL paths
-                return abs_path
-            return "\\\\?\\UNC\\" + abs_path[2:]
-    elif not abs_path.startswith("\\\\?\\"):
-        return "\\\\?\\" + abs_path
+    # Only apply extended-length namespace prefix if path actually exceeds MAX_PATH limits.
+    # Prepending \\?\ by default on short paths breaks os.scandir/os.walk in standard Python environments.
+    if len(abs_path) > 240:
+        if abs_path.startswith("\\\\"):
+            # If it's a UNC share
+            if not abs_path.startswith("\\\\?\\UNC\\") and not abs_path.startswith("\\\\?\\"):
+                if abs_path.upper().startswith(r"\\WSL$"):
+                    # Avoid prefixing WSL paths
+                    return abs_path
+                return "\\\\?\\UNC\\" + abs_path[2:]
+        elif not abs_path.startswith("\\\\?\\"):
+            return "\\\\?\\" + abs_path
         
     return abs_path
 

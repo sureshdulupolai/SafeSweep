@@ -20,12 +20,21 @@ export default function Cleaner() {
   const activeSimulation = useAppStore((state) => state.activeSimulation);
   const runDeleteSimulation = useAppStore((state) => state.runDeleteSimulation);
   const clearSimulation = useAppStore((state) => state.clearSimulation);
+  const defaultDownloads = useAppStore((state) => state.defaultDownloads);
+  const defaultDesktop = useAppStore((state) => state.defaultDesktop);
 
-  const [scanPath, setScanPath] = useState('C:\\Users\\user\\Downloads');
+  const [scanPath, setScanPath] = useState('');
   const [selectedPaths, setSelectedPaths] = useState([]);
   const [isDeleteModalOpen, setIsDeleteModalOpen] = useState(false);
   const [permanentDelete, setPermanentDelete] = useState(false);
   const [isTrustPanelOpen, setIsTrustPanelOpen] = useState(false);
+
+  // Sync scan path to dynamic defaultDownloads when it finishes loading
+  useEffect(() => {
+    if (defaultDownloads && !scanPath) {
+      setScanPath(defaultDownloads);
+    }
+  }, [defaultDownloads]);
 
   // Sync selected paths with newly scanned files
   useEffect(() => {
@@ -112,6 +121,30 @@ export default function Cleaner() {
               disabled={scanStatus === 'scanning'}
               className="bg-brand-darkest border border-brand-border rounded-lg px-3 py-1.5 flex-1 focus:outline-none focus:border-brand-accent text-xs font-mono text-gray-200"
             />
+          </div>
+          {/* Quick Preset Chips */}
+          <div className="flex flex-wrap gap-2 mt-2 select-none">
+            <button 
+              onClick={() => setScanPath(defaultDownloads)}
+              disabled={scanStatus === 'scanning'}
+              className="px-2.5 py-1 rounded bg-brand-card hover:bg-brand-card/85 border border-brand-border text-[10px] font-semibold text-gray-300 transition-colors"
+            >
+              📂 Downloads Folder
+            </button>
+            <button 
+              onClick={() => setScanPath(defaultDesktop)}
+              disabled={scanStatus === 'scanning'}
+              className="px-2.5 py-1 rounded bg-brand-card hover:bg-brand-card/85 border border-brand-border text-[10px] font-semibold text-gray-300 transition-colors"
+            >
+              🖥️ Desktop Folder
+            </button>
+            <button 
+              onClick={() => setScanPath('C:\\')}
+              disabled={scanStatus === 'scanning'}
+              className="px-2.5 py-1 rounded bg-brand-card hover:bg-brand-card/85 border border-brand-border text-[10px] font-semibold text-gray-300 transition-colors"
+            >
+              💿 C:\ System Drive
+            </button>
           </div>
         </div>
 

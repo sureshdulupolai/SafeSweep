@@ -6,10 +6,12 @@ class RPCDispatcher:
     def __init__(self):
         self.methods = {}
 
-    def register(self, name, handler):
-        """Registers a method handler inside the RPC dispatch loop."""
-        self.methods[name] = handler
-        return handler
+    def register(self, name):
+        """Registers a method handler inside the RPC dispatch loop as a decorator."""
+        def decorator(handler):
+            self.methods[name] = handler
+            return handler
+        return decorator
 
     def handle_message(self, raw_line):
         """

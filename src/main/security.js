@@ -39,6 +39,8 @@ function enforceWindowHarden(mainWindow) {
  */
 const APPROVED_IPC_METHODS = new Set([
   'system:startup',
+  'system:disk',
+  'system:dashboard_stats',
   'scanner:start',
   'scanner:cancel',
   'delete:start',

@@ -2,54 +2,85 @@ import React, { useState, useEffect } from 'react';
 import { Play, Square, Layers, ShieldCheck, Trash2 } from 'lucide-react';
 import { useAppStore } from '../store/useAppStore';
 import { motion } from 'framer-motion';
+import DeleteModal from '../components/DeleteModal';
 
 export default function DuplicateFinder() {
   const duplicatesStatus = useAppStore((state) => state.duplicatesStatus);
   const duplicatesList = useAppStore((state) => state.duplicatesList);
   const startDeletion = useAppStore((state) => state.startDeletion);
+  const defaultDownloads = useAppStore((state) => state.defaultDownloads);
+  const defaultDesktop = useAppStore((state) => state.defaultDesktop);
 
-  const [scanFolder, setScanFolder] = useState('C:\\Users\\user\\Downloads');
+  const [scanFolder, setScanFolder] = useState('');
   const [activeScan, setActiveScan] = useState(false);
   const [progressInfo, setProgressInfo] = useState({ processed_count: 0, total_count: 0 });
 
+  // DeleteModal States
+  const [isDeleteModalOpen, setIsDeleteModalOpen] = useState(false);
+  const [selectedFileToDelete, setSelectedFileToDelete] = useState(null);
+  const [activeSimulation, setActiveSimulation] = useState(null);
+
+  // Sync scan folder target to dynamic defaultDownloads path on mount
+  useEffect(() => {
+    if (defaultDownloads && !scanFolder) {
+      setScanFolder(defaultDownloads);
+    }
+  }, [defaultDownloads]);
+
   useEffect(() => {
     // Listen to incremental duplicate hashing progress reports
-    try {
-      const unsubNotify = window.api.onNotification((packet) => {
-        if (packet.method === 'duplicates.progress') {
-          setProgressInfo(packet.params);
-        } else if (packet.method === 'duplicates.completed') {
-          setActiveScan(false);
-          useAppStore.setState({ duplicatesList: packet.params.duplicates, duplicatesStatus: 'completed' });
-        }
-      });
-      return unsubNotify;
-    } catch (e) {}
+    if (window.api) {
+      try {
+        const unsubNotify = window.api.onNotification((packet) => {
+          if (packet.method === 'duplicates.progress') {
+            setProgressInfo(packet.params);
+          } else if (packet.method === 'duplicates.completed') {
+            setActiveScan(false);
+            useAppStore.setState({ duplicatesList: packet.params.duplicates, duplicatesStatus: 'completed' });
+          }
+        });
+        return unsubNotify;
+      } catch (e) {}
+    }
   }, []);
 
   const handleStartDuplicateScan = () => {
     if (!scanFolder) return;
     setActiveScan(true);
     useAppStore.setState({ duplicatesStatus: 'scanning', duplicatesList: [] });
-    window.api.sendRequest('duplicates:start', { folders: [scanFolder] });
+    if (window.api) {
+      window.api.sendRequest('duplicates:start', { folders: [scanFolder] });
+    }
   };
 
   const handleCancelDuplicateScan = () => {
-    // To support cancellations cleanly, we invoke deletions cancel/reset logic on duplicate scanner tasks
-    window.api.sendRequest('scanner:cancel');
+    if (window.api) {
+      window.api.sendRequest('scanner:cancel');
+    }
     setActiveScan(false);
     useAppStore.setState({ duplicatesStatus: 'cancelled' });
   };
 
-  const handleCleanDuplicate = (filePath) => {
-    if (confirm(`Are you sure you want to delete this duplicate file copy?\n${filePath}`)) {
-      startDeletion([filePath], false); // Safe Recycle Bin Delete
+  const handleCleanDuplicate = (filePath, fileSize) => {
+    setSelectedFileToDelete(filePath);
+    setActiveSimulation({
+      files_to_remove: [{ path: filePath }],
+      total_freed_bytes: fileSize
+    });
+    setIsDeleteModalOpen(true);
+  };
+
+  const handleConfirmDelete = () => {
+    if (selectedFileToDelete) {
+      startDeletion([selectedFileToDelete], false); // Safe Recycle Bin Delete
       // Clean locally from UI tree list
       const newList = duplicatesList.map(group => ({
         ...group,
-        files: group.files.filter(f => f !== filePath)
+        files: group.files.filter(f => f !== selectedFileToDelete)
       })).filter(group => group.files.length >= 2);
       useAppStore.setState({ duplicatesList: newList });
+      setSelectedFileToDelete(null);
+      setActiveSimulation(null);
     }
   };
 
@@ -84,6 +115,30 @@ export default function DuplicateFinder() {
             disabled={activeScan}
             className="w-full bg-brand-darkest border border-brand-border rounded-lg px-3 py-1.5 focus:outline-none focus:border-brand-accent text-xs font-mono text-gray-200"
           />
+          {/* Quick Preset Chips */}
+          <div className="flex flex-wrap gap-2 mt-2 select-none">
+            <button 
+              onClick={() => setScanFolder(defaultDownloads)}
+              disabled={activeScan}
+              className="px-2.5 py-1 rounded bg-brand-card hover:bg-brand-card/85 border border-brand-border text-[10px] font-semibold text-gray-300 transition-colors"
+            >
+              📂 Downloads Folder
+            </button>
+            <button 
+              onClick={() => setScanFolder(defaultDesktop)}
+              disabled={activeScan}
+              className="px-2.5 py-1 rounded bg-brand-card hover:bg-brand-card/85 border border-brand-border text-[10px] font-semibold text-gray-300 transition-colors"
+            >
+              🖥️ Desktop Folder
+            </button>
+            <button 
+              onClick={() => setScanFolder('C:\\')}
+              disabled={activeScan}
+              className="px-2.5 py-1 rounded bg-brand-card hover:bg-brand-card/85 border border-brand-border text-[10px] font-semibold text-gray-300 transition-colors"
+            >
+              💿 C:\ System Drive
+            </button>
+          </div>
         </div>
 
         <div className="flex gap-2 w-full md:w-auto md:self-end">
@@ -154,7 +209,7 @@ export default function DuplicateFinder() {
                         <span className="truncate pr-4 flex-grow select-text">{file}</span>
                         {fIdx > 0 && (
                           <button 
-                            onClick={() => handleCleanDuplicate(file)}
+                            onClick={() => handleCleanDuplicate(file, group.size)}
                             className="text-gray-500 hover:text-brand-rose transition-colors flex items-center gap-1 font-sans font-semibold text-[10px]"
                           >
                             <Trash2 className="h-3.5 w-3.5" />
@@ -170,6 +225,19 @@ export default function DuplicateFinder() {
           )}
         </div>
       )}
+
+      {/* Verification modal for safe, typed duplicate removals */}
+      <DeleteModal 
+        isOpen={isDeleteModalOpen}
+        onClose={() => {
+          setIsDeleteModalOpen(false);
+          setSelectedFileToDelete(null);
+          setActiveSimulation(null);
+        }}
+        simulation={activeSimulation}
+        permanent={false}
+        onConfirm={handleConfirmDelete}
+      />
     </motion.div>
   );
 }

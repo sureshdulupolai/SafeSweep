@@ -8,7 +8,7 @@ from safety import normalize_windows_path
 from error_classification import CleanerError
 
 class CrashRecoveryManager:
-    def __init__(self, app_name="AICleaner"):
+    def __init__(self, app_name="SafeSweep"):
         self.app_name = app_name
         self.recovery_dir = self._initialize_recovery_dir()
         self.journal_file_path = os.path.join(self.recovery_dir, "active_delete.journal")

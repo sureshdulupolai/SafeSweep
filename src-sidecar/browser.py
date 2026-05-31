@@ -173,11 +173,15 @@ class BrowserCleaner:
 
     def scan_all_browser_caches(self):
         """Aggregates all browser caches for UI reporting."""
+        import sys
         all_dirs = []
         all_dirs.extend(self.get_chrome_cache_dirs())
         all_dirs.extend(self.get_edge_cache_dirs())
         all_dirs.extend(self.get_brave_cache_dirs())
         all_dirs.extend(self.get_firefox_cache_dirs())
+        
+        print(f"[Sidecar Browser] Browser directories located for walking: {all_dirs}", file=sys.stderr)
+        sys.stderr.flush()
         
         results = []
         for directory in all_dirs:
@@ -192,6 +196,8 @@ class BrowserCleaner:
                             count += 1
                         except Exception:
                             pass
+                print(f"[Sidecar Browser] Scanned: {directory} -> Found {count} files ({size} bytes)", file=sys.stderr)
+                sys.stderr.flush()
                 if count > 0:
                     results.append({
                         "browser": self._detect_browser_name(directory),
@@ -199,8 +205,9 @@ class BrowserCleaner:
                         "files_count": count,
                         "size_bytes": size
                     })
-            except Exception:
-                pass
+            except Exception as e:
+                print(f"[Sidecar Browser Error] Failed scanning directory {directory}: {e}", file=sys.stderr)
+                sys.stderr.flush()
                 
         return results
 

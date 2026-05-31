@@ -45,71 +45,121 @@ cached_stats = {
     "last_updated": 0
 }
 
+is_updating_stats = False
+stats_lock = threading.Lock()
+
 def update_cached_stats_thread():
-    global cached_stats
+    global cached_stats, is_updating_stats
+    import sys
+    with stats_lock:
+        if is_updating_stats:
+            return
+        is_updating_stats = True
+
+    print("[Sidecar Stats] Starting background temp & browser size calculations...", file=sys.stderr)
+    sys.stderr.flush()
     try:
-        # Calculate Temp Files with robust path detection
+        # Calculate Temp & Waste Files with deep robust detection
         temp_dirs = []
+        
+        # 1. User Temp (%TEMP%, %TMP%)
         for env in ["TEMP", "TMP"]:
             val = os.environ.get(env)
             if val and os.path.exists(val):
                 temp_dirs.append(val)
         
-        # User profile fallback
         up = os.environ.get("USERPROFILE") or os.path.expanduser("~")
         if up and os.path.exists(up):
             up_temp = os.path.join(up, "AppData", "Local", "Temp")
             if os.path.exists(up_temp):
                 temp_dirs.append(up_temp)
                 
-        # System Windows Temp paths
+        # 2. System Temp (C:\Windows\Temp)
         sys_root = os.environ.get("SystemRoot", "C:\\Windows")
         sys_temp = os.path.join(sys_root, "Temp")
         if os.path.exists(sys_temp):
             temp_dirs.append(sys_temp)
+            
+        # 3. System Prefetch (C:\Windows\Prefetch)
         sys_prefetch = os.path.join(sys_root, "Prefetch")
         if os.path.exists(sys_prefetch):
             temp_dirs.append(sys_prefetch)
             
+        # 4. Windows Update Downloads (C:\Windows\SoftwareDistribution\Download)
+        sys_sw_dist = os.path.join(sys_root, "SoftwareDistribution", "Download")
+        if os.path.exists(sys_sw_dist):
+            temp_dirs.append(sys_sw_dist)
+            
+        # 5. Crash Dumps
+        if up and os.path.exists(up):
+            crash_dumps = os.path.join(up, "AppData", "Local", "CrashDumps")
+            if os.path.exists(crash_dumps):
+                temp_dirs.append(crash_dumps)
+                
+        # 6. Internet Cache
+        if up and os.path.exists(up):
+            inet_cache = os.path.join(up, "AppData", "Local", "Microsoft", "Windows", "INetCache")
+            if os.path.exists(inet_cache):
+                temp_dirs.append(inet_cache)
+
         # De-duplicate paths preserving order
         seen = set()
         temp_dirs = [x for x in temp_dirs if not (x in seen or seen.add(x))]
+        print(f"[Sidecar Stats] Waste directories resolved for scanning: {temp_dirs}", file=sys.stderr)
+        sys.stderr.flush()
 
         t_size, t_count = 0, 0
         for p in temp_dirs:
+            p_size, p_count = 0, 0
             if p and os.path.exists(p):
-                for root, dirs, files in os.walk(p):
-                    for f in files:
-                        fp = os.path.join(root, f)
-                        try:
-                            t_size += os.path.getsize(fp)
-                            t_count += 1
-                        except Exception:
-                            pass
+                try:
+                    for root, dirs, files in os.walk(p):
+                        for f in files:
+                            fp = os.path.join(root, f)
+                            try:
+                                sz = os.path.getsize(fp)
+                                t_size += sz
+                                p_size += sz
+                                t_count += 1
+                                p_count += 1
+                            except Exception:
+                                pass
+                except Exception as walk_e:
+                    print(f"[Sidecar Stats Error] Failed to walk directory {p}: {walk_e}", file=sys.stderr)
+                    sys.stderr.flush()
+            print(f"[Sidecar Stats] Walked directory: {p} -> Found {p_count} files ({p_size} bytes)", file=sys.stderr)
+            sys.stderr.flush()
         
         # Calculate Browser Cache
         b_size, b_count = 0, 0
+        print("[Sidecar Stats] Launching chromium & firefox cache walker...", file=sys.stderr)
+        sys.stderr.flush()
         try:
             from browser import browser_cleaner
             caches = browser_cleaner.scan_all_browser_caches()
             b_size = sum(c["size_bytes"] for c in caches)
             b_count = sum(c["files_count"] for c in caches)
-        except Exception:
-            pass
+            print(f"[Sidecar Stats] Caches scanned details: {caches}", file=sys.stderr)
+            sys.stderr.flush()
+        except Exception as b_e:
+            print(f"[Sidecar Stats Error] Browser cache scan threw an exception: {b_e}", file=sys.stderr)
+            sys.stderr.flush()
 
         cached_stats["temp_size"] = t_size
         cached_stats["temp_count"] = t_count
         cached_stats["browser_size"] = b_size
         cached_stats["browser_count"] = b_count
         cached_stats["last_updated"] = time.time()
-        logger.info("Successfully updated cached dashboard stats.", {
-            "temp_size": t_size,
-            "temp_count": t_count,
-            "browser_size": b_size,
-            "browser_count": b_count
-        })
-    except Exception as e:
-        logger.error("Failed to update dashboard cache stats.", {"error": str(e)})
+        
+        print(f"[Sidecar Stats] SUCCESS: Walk completed! Temp: {t_count} files ({t_size} B), Browsers: {b_count} files ({b_size} B)", file=sys.stderr)
+        sys.stderr.flush()
+
+    except Exception as fatal_e:
+        print(f"[Sidecar Stats Fatal] Thread crashed with error: {fatal_e}", file=sys.stderr)
+        sys.stderr.flush()
+    finally:
+        with stats_lock:
+            is_updating_stats = False
 
 # --- METHOD REGISTER BOUNDARIES ---
 

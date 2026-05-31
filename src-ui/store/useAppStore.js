@@ -1,6 +1,6 @@
 import { create } from 'zustand';
 
-const fetchWithTimeout = (url, options = {}, timeout = 600) => {
+const fetchWithTimeout = (url, options = {}, timeout = 5000) => {
   const controller = new AbortController();
   const id = setTimeout(() => controller.abort(), timeout);
   return fetch(url, { ...options, signal: controller.signal })
@@ -76,19 +76,46 @@ export const useAppStore = create((set, get) => {
     defaultDesktop: '',
     diskSpace: { total: 0, free: 0 },
     fetchDiskSpace: () => {
-      if (window.api) window.api.sendRequest('system:disk');
+      if (window.api) {
+        window.api.sendRequest('system:disk');
+      } else {
+        fetchWithTimeout('http://127.0.0.1:9988/api/disk', {}, 5000)
+          .then(res => res.json())
+          .then(result => {
+            set({ diskSpace: { total: result.total, free: result.free } });
+          })
+          .catch(() => {});
+      }
     },
 
     // Recycle bin live data
     recycleBinInfo: { size_bytes: 0, items_count: 0 },
     fetchRecycleBin: () => {
-      if (window.api) window.api.sendRequest('recycle:query');
+      if (window.api) {
+        window.api.sendRequest('recycle:query');
+      } else {
+        fetchWithTimeout('http://127.0.0.1:9988/api/recycle', {}, 5000)
+          .then(res => res.json())
+          .then(result => {
+            set({ recycleBinInfo: { size_bytes: result.size_bytes, items_count: result.items_count } });
+          })
+          .catch(() => {});
+      }
     },
 
     // Background statistics for dashboard cards
     dashboardStats: { temp_size_bytes: 0, temp_items_count: 0, browser_size_bytes: 0, browser_items_count: 0 },
     fetchDashboardStats: () => {
-      if (window.api) window.api.sendRequest('system:dashboard_stats');
+      if (window.api) {
+        window.api.sendRequest('system:dashboard_stats');
+      } else {
+        fetchWithTimeout('http://127.0.0.1:9988/api/stats', {}, 5000)
+          .then(res => res.json())
+          .then(result => {
+            set({ dashboardStats: result });
+          })
+          .catch(() => {});
+      }
     },
 
     // Global startup loading state & checklists
@@ -128,7 +155,7 @@ export const useAppStore = create((set, get) => {
           set({ loadingSteps: initialSteps, isSystemLoading: true });
 
           // Test if background HTTP server is running (started by npm run electron:dev or manually)
-          fetchWithTimeout("http://127.0.0.1:9988/api/startup", {}, 800)
+          fetchWithTimeout("http://127.0.0.1:9988/api/startup", {}, 5000)
             .then(res => {
               if (!res.ok) throw new Error("HTTP error");
               return res.json();
@@ -149,7 +176,7 @@ export const useAppStore = create((set, get) => {
 
               // 2. Fetch Disk Space
               setTimeout(() => {
-                fetchWithTimeout("http://127.0.0.1:9988/api/disk", {}, 800)
+                fetchWithTimeout("http://127.0.0.1:9988/api/disk", {}, 5000)
                   .then(res => res.json())
                   .then(diskRes => {
                     set((state) => ({
@@ -162,7 +189,7 @@ export const useAppStore = create((set, get) => {
 
                     // 3. Fetch Cache Stats
                     setTimeout(() => {
-                      fetchWithTimeout("http://127.0.0.1:9988/api/stats", {}, 800)
+                      fetchWithTimeout("http://127.0.0.1:9988/api/stats", {}, 5000)
                         .then(res => res.json())
                         .then(statsRes => {
                           set((state) => ({
@@ -176,7 +203,7 @@ export const useAppStore = create((set, get) => {
 
                           // 4. Fetch Recycle Bin
                           setTimeout(() => {
-                            fetchWithTimeout("http://127.0.0.1:9988/api/recycle", {}, 800)
+                            fetchWithTimeout("http://127.0.0.1:9988/api/recycle", {}, 5000)
                               .then(res => res.json())
                               .then(recycleRes => {
                                 set((state) => ({

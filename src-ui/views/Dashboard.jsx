@@ -27,21 +27,17 @@ export default function Dashboard() {
   const fetchRecycleBin = useAppStore((state) => state.fetchRecycleBin);
 
   useEffect(() => {
-    // Fetch fresh data on mount
-    if (window.api) {
+    // Fetch fresh data on mount (supports both Chrome browser and Electron)
+    fetchDiskSpace();
+    fetchDashboardStats();
+    fetchRecycleBin();
+
+    // Poll every 3 seconds to keep data live dynamically
+    const interval = setInterval(() => {
       fetchDiskSpace();
       fetchDashboardStats();
       fetchRecycleBin();
-    }
-
-    // Poll every 10 seconds to keep data live
-    const interval = setInterval(() => {
-      if (window.api) {
-        fetchDiskSpace();
-        fetchDashboardStats();
-        fetchRecycleBin();
-      }
-    }, 10000);
+    }, 3000);
 
     return () => clearInterval(interval);
   }, [fetchDiskSpace, fetchDashboardStats, fetchRecycleBin]);

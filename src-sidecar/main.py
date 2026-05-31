@@ -47,12 +47,33 @@ cached_stats = {
 def update_cached_stats_thread():
     global cached_stats
     try:
-        # Calculate Temp Files
-        temp_dirs = [
-            os.environ.get("TEMP"),
-            os.path.join(os.environ.get("SystemRoot", "C:\\Windows"), "Temp"),
-            os.path.join(os.environ.get("SystemRoot", "C:\\Windows"), "Prefetch")
-        ]
+        # Calculate Temp Files with robust path detection
+        temp_dirs = []
+        for env in ["TEMP", "TMP"]:
+            val = os.environ.get(env)
+            if val and os.path.exists(val):
+                temp_dirs.append(val)
+        
+        # User profile fallback
+        up = os.environ.get("USERPROFILE") or os.path.expanduser("~")
+        if up and os.path.exists(up):
+            up_temp = os.path.join(up, "AppData", "Local", "Temp")
+            if os.path.exists(up_temp):
+                temp_dirs.append(up_temp)
+                
+        # System Windows Temp paths
+        sys_root = os.environ.get("SystemRoot", "C:\\Windows")
+        sys_temp = os.path.join(sys_root, "Temp")
+        if os.path.exists(sys_temp):
+            temp_dirs.append(sys_temp)
+        sys_prefetch = os.path.join(sys_root, "Prefetch")
+        if os.path.exists(sys_prefetch):
+            temp_dirs.append(sys_prefetch)
+            
+        # De-duplicate paths preserving order
+        seen = set()
+        temp_dirs = [x for x in temp_dirs if not (x in seen or seen.add(x))]
+
         t_size, t_count = 0, 0
         for p in temp_dirs:
             if p and os.path.exists(p):
@@ -96,14 +117,19 @@ def handle_startup(params):
     # Run startup integrity and transaction recoveries
     success = crash_recovery_manager.startup_integrity_check()
     
-    # Trigger background thread immediately to query real stats asynchronously
-    threading.Thread(target=update_cached_stats_thread, daemon=True).start()
+    # Perform the first dashboard stats update synchronously so the data is ready immediately!
+    update_cached_stats_thread()
     
     # Load basic state values
     exclusions = list(exclusion_engine.custom_exclusions)
     
     # Isolate dynamic user paths to prevent hardcoded user profile bugs
     user_profile = os.environ.get("USERPROFILE", "C:\\")
+    if not user_profile or not os.path.exists(user_profile):
+        user_profile = os.path.expanduser("~")
+    if not user_profile or not os.path.exists(user_profile):
+        user_profile = "C:\\"
+        
     downloads = os.path.join(user_profile, "Downloads")
     desktop = os.path.join(user_profile, "Desktop")
     

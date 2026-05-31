@@ -5,48 +5,131 @@ from utils.logger import logger
 
 class BrowserCleaner:
     def __init__(self):
-        self.local_appdata = os.environ.get("LOCALAPPDATA", "")
-        self.appdata = os.environ.get("APPDATA", "")
+        self.local_appdata = self._resolve_local_appdata()
+        self.appdata = self._resolve_appdata()
+
+    def _resolve_local_appdata(self):
+        val = os.environ.get("LOCALAPPDATA", "")
+        if val and os.path.exists(val):
+            return val
+        val = os.path.expandvars(r"%USERPROFILE%\AppData\Local")
+        if val and os.path.exists(val):
+            return val
+        up = os.environ.get("USERPROFILE") or os.path.expanduser("~")
+        val = os.path.join(up, "AppData", "Local")
+        if os.path.exists(val):
+            return val
+        try:
+            users_dir = r"C:\Users"
+            if os.path.exists(users_dir):
+                for name in os.listdir(users_dir):
+                    p = os.path.join(users_dir, name, "AppData", "Local")
+                    if os.path.exists(p) and name.lower() not in ["public", "default", "all users"]:
+                        return p
+        except Exception:
+            pass
+        return ""
+
+    def _resolve_appdata(self):
+        val = os.environ.get("APPDATA", "")
+        if val and os.path.exists(val):
+            return val
+        val = os.path.expandvars(r"%USERPROFILE%\AppData\Roaming")
+        if val and os.path.exists(val):
+            return val
+        up = os.environ.get("USERPROFILE") or os.path.expanduser("~")
+        val = os.path.join(up, "AppData", "Roaming")
+        if os.path.exists(val):
+            return val
+        try:
+            users_dir = r"C:\Users"
+            if os.path.exists(users_dir):
+                for name in os.listdir(users_dir):
+                    p = os.path.join(users_dir, name, "AppData", "Roaming")
+                    if os.path.exists(p) and name.lower() not in ["public", "default", "all users"]:
+                        return p
+        except Exception:
+            pass
+        return ""
 
     def get_chrome_cache_dirs(self):
         """Locates safe Google Chrome temp cache directories."""
-        if not self.local_appdata:
-            return []
+        dirs = []
+        if self.local_appdata:
+            base_path = os.path.join(self.local_appdata, r"Google\Chrome\User Data")
+            dirs.extend(self._find_chromium_caches(base_path))
         
-        base_path = os.path.join(self.local_appdata, r"Google\Chrome\User Data")
-        return self._find_chromium_caches(base_path)
+        # Robust fallback: Search C:\Users for active chrome caches
+        try:
+            for entry in os.scandir(r"C:\Users"):
+                if entry.is_dir() and entry.name.lower() not in ["public", "default", "all users"]:
+                    base_path = os.path.join(entry.path, r"AppData\Local\Google\Chrome\User Data")
+                    dirs.extend(self._find_chromium_caches(base_path))
+        except Exception:
+            pass
+        return list(set(dirs))
 
     def get_edge_cache_dirs(self):
         """Locates safe Microsoft Edge temp cache directories."""
-        if not self.local_appdata:
-            return []
+        dirs = []
+        if self.local_appdata:
+            base_path = os.path.join(self.local_appdata, r"Microsoft\Edge\User Data")
+            dirs.extend(self._find_chromium_caches(base_path))
             
-        base_path = os.path.join(self.local_appdata, r"Microsoft\Edge\User Data")
-        return self._find_chromium_caches(base_path)
+        # Robust fallback: Search C:\Users for active Edge caches
+        try:
+            for entry in os.scandir(r"C:\Users"):
+                if entry.is_dir() and entry.name.lower() not in ["public", "default", "all users"]:
+                    base_path = os.path.join(entry.path, r"AppData\Local\Microsoft\Edge\User Data")
+                    dirs.extend(self._find_chromium_caches(base_path))
+        except Exception:
+            pass
+        return list(set(dirs))
 
     def get_brave_cache_dirs(self):
         """Locates safe Brave Browser temp cache directories."""
-        if not self.local_appdata:
-            return []
+        dirs = []
+        if self.local_appdata:
+            base_path = os.path.join(self.local_appdata, r"BraveSoftware\Brave-Browser\User Data")
+            dirs.extend(self._find_chromium_caches(base_path))
             
-        base_path = os.path.join(self.local_appdata, r"BraveSoftware\Brave-Browser\User Data")
-        return self._find_chromium_caches(base_path)
+        # Robust fallback: Search C:\Users for active Brave caches
+        try:
+            for entry in os.scandir(r"C:\Users"):
+                if entry.is_dir() and entry.name.lower() not in ["public", "default", "all users"]:
+                    base_path = os.path.join(entry.path, r"AppData\Local\BraveSoftware\Brave-Browser\User Data")
+                    dirs.extend(self._find_chromium_caches(base_path))
+        except Exception:
+            pass
+        return list(set(dirs))
 
     def get_firefox_cache_dirs(self):
         """Locates safe Mozilla Firefox cache directories."""
-        if not self.local_appdata or not self.appdata:
-            return []
+        dirs = []
+        
+        # Roaming profile check
+        if self.local_appdata:
+            firefox_local = os.path.join(self.local_appdata, r"Mozilla\Firefox\Profiles")
+            if os.path.exists(firefox_local):
+                dirs.extend(self._find_firefox_caches(firefox_local))
+                
+        # Robust fallback: Search C:\Users for active Firefox caches
+        try:
+            for entry in os.scandir(r"C:\Users"):
+                if entry.is_dir() and entry.name.lower() not in ["public", "default", "all users"]:
+                    firefox_local = os.path.join(entry.path, r"AppData\Local\Mozilla\Firefox\Profiles")
+                    if os.path.exists(firefox_local):
+                        dirs.extend(self._find_firefox_caches(firefox_local))
+        except Exception:
+            pass
             
-        # Firefox cache is stored in Local AppData, profiles are in Roaming AppData
-        firefox_local = os.path.join(self.local_appdata, r"Mozilla\Firefox\Profiles")
-        if not os.path.exists(firefox_local):
-            return []
-            
+        return list(set(dirs))
+
+    def _find_firefox_caches(self, firefox_local):
         cache_dirs = []
         try:
             for entry in os.scandir(firefox_local):
                 if entry.is_dir():
-                    # Firefox cache2 directory inside profiles holds temporary files
                     cache2 = os.path.join(entry.path, "cache2")
                     if os.path.exists(cache2):
                         cache_dirs.append(normalize_windows_path(cache2))
@@ -55,7 +138,6 @@ class BrowserCleaner:
                         cache_dirs.append(normalize_windows_path(thumbnail))
         except Exception:
             pass
-            
         return cache_dirs
 
     def _find_chromium_caches(self, user_data_path):
@@ -67,7 +149,6 @@ class BrowserCleaner:
             return []
             
         caches = []
-        # Search profiles (Default, Profile 1, Profile 2, etc.)
         search_patterns = [
             os.path.join(user_data_path, "Default"),
             os.path.join(user_data_path, "Profile *")
@@ -78,7 +159,6 @@ class BrowserCleaner:
                 if not os.path.isdir(profile_dir):
                     continue
                 
-                # Pre-defined Chromium temporary cache folders
                 temp_subdirs = [
                     "Cache", "GPUCache", "Code Cache", 
                     "Service Worker/CacheStorage", "Service Worker/ScriptCache"
@@ -138,3 +218,4 @@ class BrowserCleaner:
 
 # Global browser cleaner instance
 browser_cleaner = BrowserCleaner()
+

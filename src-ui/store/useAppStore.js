@@ -77,8 +77,15 @@ export const useAppStore = create((set, get) => {
       if (window.api) window.api.sendRequest('system:dashboard_stats');
     },
 
-    // Global loading flag - true until backend startup response fully received
+    // Global startup loading state & checklists
     isSystemLoading: true,
+    loadingSteps: [
+      { id: 'integrity', label: 'Verifying Security Middleware Shield...', status: 'pending' },
+      { id: 'disk', label: 'Querying C:\\ drive NTFS analytics...', status: 'pending' },
+      { id: 'temp', label: 'Locating temporary system caches...', status: 'pending' },
+      { id: 'browsers', label: 'Scanning browser cache databases...', status: 'pending' },
+      { id: 'recycle', label: 'Querying Recycle Bin allocation...', status: 'pending' }
+    ],
 
     // Initialize API bridge listeners
     initBridge: (retryCount = 0) => {
@@ -94,12 +101,104 @@ export const useAppStore = create((set, get) => {
             set({ serviceError: "Failed to connect to the local system service. Please restart the SafeSweep utility." });
           }
         } else {
-          // In a regular browser - no Electron API available, clear loader immediately
-          console.log("[SafeSweep] Running in browser (no Electron API). Desktop system data unavailable.");
-          set({ isSystemLoading: false });
+          // In a regular browser - no Electron API available, run premium mock simulation sequence!
+          console.log("[SafeSweep] Running in browser (no Electron API). Initializing dynamic simulated loading sequence...");
+          
+          const initialSteps = [
+            { id: 'integrity', label: 'Verifying Security Middleware Shield...', status: 'active' },
+            { id: 'disk', label: 'Querying C:\\ drive NTFS analytics...', status: 'pending' },
+            { id: 'temp', label: 'Locating temporary system caches...', status: 'pending' },
+            { id: 'browsers', label: 'Scanning browser cache databases...', status: 'pending' },
+            { id: 'recycle', label: 'Querying Recycle Bin allocation...', status: 'pending' }
+          ];
+          set({ loadingSteps: initialSteps, isSystemLoading: true });
+
+          setTimeout(() => {
+            // Finish Integrity, start Disk
+            set((state) => ({
+              loadingSteps: state.loadingSteps.map(s =>
+                s.id === 'integrity' ? { ...s, status: 'completed' } :
+                s.id === 'disk' ? { ...s, status: 'active' } : s
+              )
+            }));
+            
+            setTimeout(() => {
+              // Finish Disk, start Temp, populate Disk mock
+              set((state) => ({
+                diskSpace: { total: 512110000000, free: 297022000000 },
+                loadingSteps: state.loadingSteps.map(s =>
+                  s.id === 'disk' ? { ...s, status: 'completed' } :
+                  s.id === 'temp' ? { ...s, status: 'active' } : s
+                )
+              }));
+              
+              setTimeout(() => {
+                // Finish Temp, start Browsers, populate Temp mock
+                set((state) => ({
+                  dashboardStats: {
+                    ...state.dashboardStats,
+                    temp_size_bytes: 843102030,
+                    temp_items_count: 1420
+                  },
+                  loadingSteps: state.loadingSteps.map(s =>
+                    s.id === 'temp' ? { ...s, status: 'completed' } :
+                    s.id === 'browsers' ? { ...s, status: 'active' } : s
+                  )
+                }));
+                
+                setTimeout(() => {
+                  // Finish Browsers, start Recycle, populate Browsers mock
+                  set((state) => ({
+                    dashboardStats: {
+                      ...state.dashboardStats,
+                      browser_size_bytes: 1421034900,
+                      browser_items_count: 8201
+                    },
+                    loadingSteps: state.loadingSteps.map(s =>
+                      s.id === 'browsers' ? { ...s, status: 'completed' } :
+                      s.id === 'recycle' ? { ...s, status: 'active' } : s
+                    )
+                  }));
+                  
+                  setTimeout(() => {
+                    // Finish Recycle, populate Recycle mock
+                    set((state) => ({
+                      recycleBinInfo: { size_bytes: 120930400, items_count: 42 },
+                      exclusions: ['C:\\Users\\User\\Downloads\\.git', 'C:\\Users\\User\\Desktop\\node_modules'],
+                      defaultDownloads: 'C:\\Users\\User\\Downloads',
+                      defaultDesktop: 'C:\\Users\\User\\Desktop',
+                      loadingSteps: state.loadingSteps.map(s =>
+                        s.id === 'recycle' ? { ...s, status: 'completed' } : s
+                      )
+                    }));
+                    
+                    setTimeout(() => {
+                      // Hide loader
+                      set({ isSystemLoading: false });
+                    }, 400);
+                    
+                  }, 400);
+                  
+                }, 400);
+                
+              }, 400);
+              
+            }, 400);
+            
+          }, 400);
         }
         return;
       }
+
+      // Initialize Electron real checklist loading steps
+      const steps = [
+        { id: 'integrity', label: 'Verifying Security Middleware Shield...', status: 'active' },
+        { id: 'disk', label: 'Querying C:\\ drive NTFS analytics...', status: 'pending' },
+        { id: 'temp', label: 'Locating temporary system caches...', status: 'pending' },
+        { id: 'browsers', label: 'Scanning browser cache databases...', status: 'pending' },
+        { id: 'recycle', label: 'Querying Recycle Bin allocation...', status: 'pending' }
+      ];
+      set({ loadingSteps: steps, isSystemLoading: true });
 
       // Clean previous subscriptions if re-initializing
       if (unsubscribeNotify) unsubscribeNotify();
@@ -163,36 +262,75 @@ export const useAppStore = create((set, get) => {
 
         // system.startup response
         if (result.status === 'online' && result.user_profile !== undefined) {
-          set({
+          set((state) => ({
             exclusions: result.custom_exclusions || [],
             defaultDownloads: result.downloads || '',
-            defaultDesktop: result.desktop || ''
-          });
+            defaultDesktop: result.desktop || '',
+            loadingSteps: state.loadingSteps.map(s =>
+              s.id === 'integrity' ? { ...s, status: 'completed' } :
+              s.id === 'disk' ? { ...s, status: 'active' } : s
+            )
+          }));
           // After startup, fire all live data fetches
           get().fetchDiskSpace();
           get().fetchDashboardStats();
           get().fetchRecycleBin();
           get().fetchQuarantine();
-          // Local IPC is fast - clear loader immediately after dispatching fetches
-          set({ isSystemLoading: false });
           return;
         }
 
         // system.disk_space response (has total + free, no status field)
         if (result.total !== undefined && result.free !== undefined && result.status === undefined) {
-          set({ diskSpace: { total: result.total, free: result.free } });
+          set((state) => {
+            const nextSteps = state.loadingSteps.map(s =>
+              s.id === 'disk' ? { ...s, status: 'completed' } :
+              s.id === 'temp' ? { ...s, status: 'active' } : s
+            );
+            const allDone = nextSteps.every(s => s.status === 'completed');
+            return {
+              diskSpace: { total: result.total, free: result.free },
+              loadingSteps: nextSteps,
+              isSystemLoading: allDone ? false : state.isSystemLoading
+            };
+          });
           return;
         }
 
         // system.dashboard_stats response
         if (result.temp_size_bytes !== undefined && result.browser_size_bytes !== undefined) {
-          set({ dashboardStats: result });
+          set((state) => {
+            const nextSteps = state.loadingSteps.map(s =>
+              s.id === 'temp' ? { ...s, status: 'completed' } :
+              s.id === 'browsers' ? { ...s, status: 'completed' } :
+              s.id === 'recycle' ? { ...s, status: 'active' } : s
+            );
+            const allDone = nextSteps.every(s => s.status === 'completed');
+            return {
+              dashboardStats: result,
+              loadingSteps: nextSteps,
+              isSystemLoading: allDone ? false : state.isSystemLoading
+            };
+          });
           return;
         }
 
         // recycle_bin.query response (has size_bytes + items_count, no status)
         if (result.size_bytes !== undefined && result.items_count !== undefined && result.status === undefined) {
-          set({ recycleBinInfo: { size_bytes: result.size_bytes, items_count: result.items_count } });
+          set((state) => {
+            const nextSteps = state.loadingSteps.map(s =>
+              s.id === 'recycle' ? { ...s, status: 'completed' } : s
+            );
+            const allDone = nextSteps.every(s => s.status === 'completed');
+            if (allDone) {
+              setTimeout(() => {
+                set({ isSystemLoading: false });
+              }, 400);
+            }
+            return {
+              recycleBinInfo: { size_bytes: result.size_bytes, items_count: result.items_count },
+              loadingSteps: nextSteps
+            };
+          });
           return;
         }
 

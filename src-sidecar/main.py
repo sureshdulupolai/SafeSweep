@@ -3,6 +3,7 @@ import os
 import json
 import threading
 import time
+from http.server import BaseHTTPRequestHandler, HTTPServer
 from rpc import RPCDispatcher
 from scanner import ScanningTask
 from delete_engine import DeletionSession
@@ -117,8 +118,8 @@ def handle_startup(params):
     # Run startup integrity and transaction recoveries
     success = crash_recovery_manager.startup_integrity_check()
     
-    # Perform the first dashboard stats update synchronously so the data is ready immediately!
-    update_cached_stats_thread()
+    # Trigger background thread immediately to query real stats asynchronously
+    threading.Thread(target=update_cached_stats_thread, daemon=True).start()
     
     # Load basic state values
     exclusions = list(exclusion_engine.custom_exclusions)
@@ -356,10 +357,66 @@ def handle_shutdown(params):
     # Exit main loop safely
     sys.exit(0)
 
+# --- LIGHTWEIGHT LOCAL HTTP API BACKEND FOR BROWSER RUNTIMES ---
+
+class LocalCleanerHTTPServer(BaseHTTPRequestHandler):
+    def log_message(self, format, *args):
+        # Prevent polluting standard output streams which Electron listens to!
+        pass
+
+    def send_cors_headers(self):
+        self.send_header("Access-Control-Allow-Origin", "*")
+        self.send_header("Access-Control-Allow-Methods", "GET, OPTIONS")
+        self.send_header("Access-Control-Allow-Headers", "Content-Type")
+
+    def do_OPTIONS(self):
+        self.send_response(200)
+        self.send_cors_headers()
+        self.end_headers()
+
+    def do_GET(self):
+        if self.path.startswith("/api/"):
+            self.send_response(200)
+            self.send_header("Content-type", "application/json")
+            self.send_cors_headers()
+            self.end_headers()
+            
+            endpoint = self.path[5:]
+            try:
+                if endpoint == "startup":
+                    res = handle_startup({})
+                    self.wfile.write(json.dumps(res).encode())
+                elif endpoint == "disk":
+                    res = handle_disk_space({})
+                    self.wfile.write(json.dumps(res).encode())
+                elif endpoint == "stats":
+                    res = handle_dashboard_stats({})
+                    self.wfile.write(json.dumps(res).encode())
+                elif endpoint == "recycle":
+                    res = handle_recycle_query({})
+                    self.wfile.write(json.dumps(res).encode())
+                else:
+                    self.wfile.write(json.dumps({"error": "endpoint not found"}).encode())
+            except Exception as e:
+                self.wfile.write(json.dumps({"error": str(e)}).encode())
+        else:
+            self.send_response(404)
+            self.end_headers()
+
+def run_http_server():
+    try:
+        server = HTTPServer(("127.0.0.1", 9988), LocalCleanerHTTPServer)
+        server.serve_forever()
+    except Exception as e:
+        logger.error("Failed to start background local HTTP server.", {"error": str(e)})
+
 # --- MAIN LOOP SUBSYSTEM ---
 
 def main():
     logger.info("AI Smart PC Cleaner sidecar initialized successfully.")
+    
+    # Spawn background HTTP API server to let standard browsers fetch real PC metrics
+    threading.Thread(target=run_http_server, daemon=True).start()
     
     # Process commands from stdin sequentially
     try:

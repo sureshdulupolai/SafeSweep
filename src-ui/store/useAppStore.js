@@ -1,5 +1,19 @@
 import { create } from 'zustand';
 
+const fetchWithTimeout = (url, options = {}, timeout = 600) => {
+  const controller = new AbortController();
+  const id = setTimeout(() => controller.abort(), timeout);
+  return fetch(url, { ...options, signal: controller.signal })
+    .then((res) => {
+      clearTimeout(id);
+      return res;
+    })
+    .catch((err) => {
+      clearTimeout(id);
+      throw err;
+    });
+};
+
 export const useAppStore = create((set, get) => {
   // Listener hooks binding backend data streams to frontend store states
   let unsubscribeNotify = null;
@@ -101,8 +115,8 @@ export const useAppStore = create((set, get) => {
             set({ serviceError: "Failed to connect to the local system service. Please restart the SafeSweep utility." });
           }
         } else {
-          // In a regular browser - no Electron API available, run premium mock simulation sequence!
-          console.log("[SafeSweep] Running in browser (no Electron API). Initializing dynamic simulated loading sequence...");
+          // In a regular browser - no Electron API available, check if local HTTP sidecar API is running!
+          console.log("[SafeSweep] Running in browser. Checking if local backend API server is online on port 9988...");
           
           const initialSteps = [
             { id: 'integrity', label: 'Verifying Security Middleware Shield...', status: 'active' },
@@ -113,79 +127,84 @@ export const useAppStore = create((set, get) => {
           ];
           set({ loadingSteps: initialSteps, isSystemLoading: true });
 
-          setTimeout(() => {
-            // Finish Integrity, start Disk
-            set((state) => ({
-              loadingSteps: state.loadingSteps.map(s =>
-                s.id === 'integrity' ? { ...s, status: 'completed' } :
-                s.id === 'disk' ? { ...s, status: 'active' } : s
-              )
-            }));
-            
-            setTimeout(() => {
-              // Finish Disk, start Temp, populate Disk mock
+          // Test if background HTTP server is running (started by npm run electron:dev or manually)
+          fetchWithTimeout("http://127.0.0.1:9988/api/startup", {}, 800)
+            .then(res => {
+              if (!res.ok) throw new Error("HTTP error");
+              return res.json();
+            })
+            .then(startupRes => {
+              console.log("[SafeSweep API] Connected to live Python sidecar server! Fetching real dynamic PC metrics...");
+              
+              // 1. Resolve startup
               set((state) => ({
-                diskSpace: { total: 512110000000, free: 297022000000 },
+                exclusions: startupRes.custom_exclusions || [],
+                defaultDownloads: startupRes.downloads || '',
+                defaultDesktop: startupRes.desktop || '',
                 loadingSteps: state.loadingSteps.map(s =>
-                  s.id === 'disk' ? { ...s, status: 'completed' } :
-                  s.id === 'temp' ? { ...s, status: 'active' } : s
+                  s.id === 'integrity' ? { ...s, status: 'completed' } :
+                  s.id === 'disk' ? { ...s, status: 'active' } : s
                 )
               }));
-              
+
+              // 2. Fetch Disk Space
               setTimeout(() => {
-                // Finish Temp, start Browsers, populate Temp mock
-                set((state) => ({
-                  dashboardStats: {
-                    ...state.dashboardStats,
-                    temp_size_bytes: 843102030,
-                    temp_items_count: 1420
-                  },
-                  loadingSteps: state.loadingSteps.map(s =>
-                    s.id === 'temp' ? { ...s, status: 'completed' } :
-                    s.id === 'browsers' ? { ...s, status: 'active' } : s
-                  )
-                }));
-                
-                setTimeout(() => {
-                  // Finish Browsers, start Recycle, populate Browsers mock
-                  set((state) => ({
-                    dashboardStats: {
-                      ...state.dashboardStats,
-                      browser_size_bytes: 1421034900,
-                      browser_items_count: 8201
-                    },
-                    loadingSteps: state.loadingSteps.map(s =>
-                      s.id === 'browsers' ? { ...s, status: 'completed' } :
-                      s.id === 'recycle' ? { ...s, status: 'active' } : s
-                    )
-                  }));
-                  
-                  setTimeout(() => {
-                    // Finish Recycle, populate Recycle mock
+                fetchWithTimeout("http://127.0.0.1:9988/api/disk", {}, 800)
+                  .then(res => res.json())
+                  .then(diskRes => {
                     set((state) => ({
-                      recycleBinInfo: { size_bytes: 120930400, items_count: 42 },
-                      exclusions: ['C:\\Users\\User\\Downloads\\.git', 'C:\\Users\\User\\Desktop\\node_modules'],
-                      defaultDownloads: 'C:\\Users\\User\\Downloads',
-                      defaultDesktop: 'C:\\Users\\User\\Desktop',
+                      diskSpace: { total: diskRes.total, free: diskRes.free },
                       loadingSteps: state.loadingSteps.map(s =>
-                        s.id === 'recycle' ? { ...s, status: 'completed' } : s
+                        s.id === 'disk' ? { ...s, status: 'completed' } :
+                        s.id === 'temp' ? { ...s, status: 'active' } : s
                       )
                     }));
-                    
+
+                    // 3. Fetch Cache Stats
                     setTimeout(() => {
-                      // Hide loader
-                      set({ isSystemLoading: false });
-                    }, 400);
-                    
-                  }, 400);
-                  
-                }, 400);
-                
-              }, 400);
-              
-            }, 400);
-            
-          }, 400);
+                      fetchWithTimeout("http://127.0.0.1:9988/api/stats", {}, 800)
+                        .then(res => res.json())
+                        .then(statsRes => {
+                          set((state) => ({
+                            dashboardStats: statsRes,
+                            loadingSteps: state.loadingSteps.map(s =>
+                              s.id === 'temp' ? { ...s, status: 'completed' } :
+                              s.id === 'browsers' ? { ...s, status: 'completed' } :
+                              s.id === 'recycle' ? { ...s, status: 'active' } : s
+                            )
+                          }));
+
+                          // 4. Fetch Recycle Bin
+                          setTimeout(() => {
+                            fetchWithTimeout("http://127.0.0.1:9988/api/recycle", {}, 800)
+                              .then(res => res.json())
+                              .then(recycleRes => {
+                                set((state) => ({
+                                  recycleBinInfo: { size_bytes: recycleRes.size_bytes, items_count: recycleRes.items_count },
+                                  loadingSteps: state.loadingSteps.map(s =>
+                                    s.id === 'recycle' ? { ...s, status: 'completed' } : s
+                                  )
+                                }));
+
+                                // 5. Hide Loader
+                                setTimeout(() => {
+                                  set({ isSystemLoading: false });
+                                }, 300);
+                              })
+                              .catch(() => get()._runMockSimulation(initialSteps));
+                          }, 300);
+                        })
+                        .catch(() => get()._runMockSimulation(initialSteps));
+                    }, 300);
+                  })
+                  .catch(() => get()._runMockSimulation(initialSteps));
+              }, 300);
+            })
+            .catch(() => {
+              // Local backend not running, fall back to premium mock simulation sequence
+              console.log("[SafeSweep API] Python sidecar server is offline or timed out. Falling back to high-fidelity mock data simulation.");
+              get()._runMockSimulation(initialSteps);
+            });
         }
         return;
       }
@@ -528,6 +547,79 @@ export const useAppStore = create((set, get) => {
       set((state) => ({
         exclusions: state.exclusions.filter(e => e !== exclusionPath)
       }));
+    },
+
+    // Timed preview simulation for browsers with offline background services
+    _runMockSimulation: (initialSteps) => {
+      set({ loadingSteps: initialSteps, isSystemLoading: true });
+      
+      setTimeout(() => {
+        set((state) => ({
+          loadingSteps: state.loadingSteps.map(s =>
+            s.id === 'integrity' ? { ...s, status: 'completed' } :
+            s.id === 'disk' ? { ...s, status: 'active' } : s
+          )
+        }));
+        
+        setTimeout(() => {
+          set((state) => ({
+            diskSpace: { total: 512110000000, free: 297022000000 },
+            loadingSteps: state.loadingSteps.map(s =>
+              s.id === 'disk' ? { ...s, status: 'completed' } :
+              s.id === 'temp' ? { ...s, status: 'active' } : s
+            )
+          }));
+          
+          setTimeout(() => {
+            set((state) => ({
+              dashboardStats: {
+                ...state.dashboardStats,
+                temp_size_bytes: 843102030,
+                temp_items_count: 1420
+              },
+              loadingSteps: state.loadingSteps.map(s =>
+                s.id === 'temp' ? { ...s, status: 'completed' } :
+                s.id === 'browsers' ? { ...s, status: 'active' } : s
+              )
+            }));
+            
+            setTimeout(() => {
+              set((state) => ({
+                dashboardStats: {
+                  ...state.dashboardStats,
+                  browser_size_bytes: 1421034900,
+                  browser_items_count: 8201
+                },
+                loadingSteps: state.loadingSteps.map(s =>
+                  s.id === 'browsers' ? { ...s, status: 'completed' } :
+                  s.id === 'recycle' ? { ...s, status: 'active' } : s
+                )
+              }));
+              
+              setTimeout(() => {
+                set((state) => ({
+                  recycleBinInfo: { size_bytes: 120930400, items_count: 42 },
+                  exclusions: ['C:\\Users\\User\\Downloads\\.git', 'C:\\Users\\User\\Desktop\\node_modules'],
+                  defaultDownloads: 'C:\\Users\\User\\Downloads',
+                  defaultDesktop: 'C:\\Users\\User\\Desktop',
+                  loadingSteps: state.loadingSteps.map(s =>
+                    s.id === 'recycle' ? { ...s, status: 'completed' } : s
+                  )
+                }));
+                
+                setTimeout(() => {
+                  set({ isSystemLoading: false });
+                }, 400);
+                
+              }, 400);
+              
+            }, 400);
+            
+          }, 400);
+          
+        }, 400);
+        
+      }, 400);
     }
   };
 });

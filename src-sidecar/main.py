@@ -401,6 +401,90 @@ def handle_dashboard_stats(params):
         "browser_items_count": cached_stats["browser_count"]
     }
 
+@dispatcher.register("system.quick_clean")
+def handle_quick_clean(params):
+    target = params.get("target")
+    bytes_freed = 0
+    files_deleted = 0
+    import shutil
+
+    def safe_delete_folder_contents(folder_path):
+        freed = 0
+        f_count = 0
+        import stat
+        if not os.path.exists(folder_path): return 0, 0
+        for root, dirs, files in os.walk(folder_path, topdown=False):
+            for file in files:
+                fp = os.path.join(root, file)
+                try:
+                    size = os.path.getsize(fp)
+                    try:
+                        os.chmod(fp, stat.S_IWRITE)
+                    except Exception:
+                        pass
+                    os.remove(fp)
+                    freed += size
+                    f_count += 1
+                except Exception:
+                    pass
+            for dir in dirs:
+                dp = os.path.join(root, dir)
+                try:
+                    os.rmdir(dp)
+                except Exception:
+                    pass
+        return freed, f_count
+
+    if target == "recycle_bin":
+        info = query_recycle_bin()
+        bytes_freed = info.get("size_bytes", 0)
+        files_deleted = info.get("items_count", 0)
+        success = empty_recycle_bin(confirm=True)
+        if not success:
+            bytes_freed = 0
+            files_deleted = 0
+            
+    elif target == "temp_files":
+        temp_dirs = []
+        for env in ["TEMP", "TMP"]:
+            val = os.environ.get(env)
+            if val and os.path.exists(val): temp_dirs.append(val)
+        up = os.environ.get("USERPROFILE") or os.path.expanduser("~")
+        if up and os.path.exists(up):
+            up_temp = os.path.join(up, "AppData", "Local", "Temp")
+            if os.path.exists(up_temp): temp_dirs.append(up_temp)
+        sys_root = os.environ.get("SystemRoot", "C:\\Windows")
+        for sub in ["Temp", "Prefetch", "SoftwareDistribution\\Download"]:
+            sys_path = os.path.join(sys_root, sub)
+            if os.path.exists(sys_path): temp_dirs.append(sys_path)
+        if up and os.path.exists(up):
+            for sub in ["AppData\\Local\\CrashDumps", "AppData\\Local\\Microsoft\\Windows\\INetCache"]:
+                up_path = os.path.join(up, sub)
+                if os.path.exists(up_path): temp_dirs.append(up_path)
+                
+        seen = set()
+        temp_dirs = [x for x in temp_dirs if not (x in seen or seen.add(x))]
+        
+        for p in temp_dirs:
+            bf, fc = safe_delete_folder_contents(p)
+            bytes_freed += bf
+            files_deleted += fc
+            
+    elif target == "browser_caches":
+        try:
+            from browser import browser_cleaner
+            caches = browser_cleaner.scan_all_browser_caches()
+            for c in caches:
+                bf, fc = safe_delete_folder_contents(c["path"])
+                bytes_freed += bf
+                files_deleted += fc
+        except Exception as e:
+            logger.error("Failed to clean browser caches.", {"error": str(e)})
+
+    # Re-trigger background thread to update cached stats after quick clean
+    threading.Thread(target=update_cached_stats_thread, daemon=True).start()
+    return {"status": "completed", "bytes_freed": bytes_freed, "files_deleted": files_deleted}
+
 @dispatcher.register("system.shutdown")
 def handle_shutdown(params):
     logger.info("Received sidecar shutdown command. Ending process cleanly.")
@@ -444,6 +528,13 @@ class LocalCleanerHTTPServer(BaseHTTPRequestHandler):
                     self.wfile.write(json.dumps(res).encode())
                 elif endpoint == "recycle":
                     res = handle_recycle_query({})
+                    self.wfile.write(json.dumps(res).encode())
+                elif endpoint.startswith("quick_clean"):
+                    # Parse target from query params manually: /api/quick_clean?target=xyz
+                    target = "temp_files"
+                    if "target=" in endpoint:
+                        target = endpoint.split("target=")[1].split("&")[0]
+                    res = handle_quick_clean({"target": target})
                     self.wfile.write(json.dumps(res).encode())
                 else:
                     self.wfile.write(json.dumps({"error": "endpoint not found"}).encode())

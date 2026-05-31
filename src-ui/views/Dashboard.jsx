@@ -1,5 +1,5 @@
-import React, { useEffect } from 'react';
-import { ShieldCheck, HardDrive, RefreshCw, Layers, ShieldAlert, Cpu, Trash2, Loader2 } from 'lucide-react';
+import React, { useEffect, useState } from 'react';
+import { ShieldCheck, HardDrive, RefreshCw, Layers, ShieldAlert, Cpu, Trash2, Loader2, AlertTriangle, X } from 'lucide-react';
 import { useAppStore } from '../store/useAppStore';
 import { motion, AnimatePresence } from 'framer-motion';
 
@@ -25,6 +25,23 @@ export default function Dashboard() {
   const fetchDashboardStats = useAppStore((state) => state.fetchDashboardStats);
   const recycleBinInfo = useAppStore((state) => state.recycleBinInfo);
   const fetchRecycleBin = useAppStore((state) => state.fetchRecycleBin);
+  
+  // Quick Clean Actions
+  const quickClean = useAppStore((state) => state.quickClean);
+  const quickCleanStatus = useAppStore((state) => state.quickCleanStatus);
+  const quickCleanBytesFreed = useAppStore((state) => state.quickCleanBytesFreed);
+  const quickCleanFilesDeleted = useAppStore((state) => state.quickCleanFilesDeleted);
+
+  const [modalState, setModalState] = useState({ isOpen: false, step: 'confirm', targetId: null, label: '', value: '', bytesValue: 0 });
+  const [confirmText, setConfirmText] = useState('');
+  const [toastMessage, setToastMessage] = useState(null);
+
+  useEffect(() => {
+    if (quickCleanStatus === 'completed' && modalState.isOpen && modalState.step === 'confirm') {
+      // Transition to success step inside the modal
+      setModalState(prev => ({ ...prev, step: 'success' }));
+    }
+  }, [quickCleanStatus, modalState.isOpen, modalState.step]);
 
   useEffect(() => {
     // Fetch fresh data on mount (supports both Chrome browser and Electron)
@@ -47,6 +64,28 @@ export default function Dashboard() {
     setActivePanel('cleaner');
   };
 
+  const handleCardClick = (id, label, value, rawBytes) => {
+    if (id === 'exclusion') return; // Not cleanable
+    setModalState({ isOpen: true, step: 'confirm', targetId: id, label, value, bytesValue: rawBytes });
+    setConfirmText('');
+  };
+
+  const closeAndResetModal = () => {
+    const wasSuccess = modalState.step === 'success';
+    setModalState({ isOpen: false, step: 'confirm', targetId: null, label: '', value: '', bytesValue: 0 });
+    setConfirmText('');
+    if (wasSuccess) {
+      // Hard reload to guarantee all data is fetched fresh
+      window.location.reload();
+    }
+  };
+
+  const handleQuickClean = () => {
+    if (confirmText.toLowerCase().trim() === 'delete' && modalState.targetId) {
+      quickClean(modalState.targetId);
+    }
+  };
+
   const formatBytes = (bytes) => {
     if (!bytes || bytes === 0) return '0 B';
     const k = 1024;
@@ -66,7 +105,7 @@ export default function Dashboard() {
       initial={{ opacity: 0, y: 15 }}
       animate={{ opacity: 1, y: 0 }}
       exit={{ opacity: 0, y: 15 }}
-      className="flex-1 p-6 space-y-6 overflow-y-auto select-text"
+      className="flex-1 p-6 space-y-6 overflow-y-auto select-text relative"
     >
       {/* Top Welcome Title block */}
       <div className="flex justify-between items-center">
@@ -79,6 +118,158 @@ export default function Dashboard() {
           <span>System Status: Hardened &amp; Shielded</span>
         </div>
       </div>
+
+      {toastMessage && (
+        <motion.div
+          initial={{ opacity: 0, y: -20 }}
+          animate={{ opacity: 1, y: 0 }}
+          exit={{ opacity: 0 }}
+          className="absolute top-4 left-1/2 transform -translate-x-1/2 z-50 bg-brand-green/90 text-white px-4 py-2 rounded-lg text-sm font-semibold shadow-lg border border-brand-green/50 flex items-center gap-2"
+        >
+          <ShieldCheck className="h-4 w-4" />
+          {toastMessage}
+        </motion.div>
+      )}
+
+      {/* Delete Confirmation Modal */}
+      <AnimatePresence>
+        {modalState.isOpen && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4"
+          >
+            <motion.div
+              initial={{ scale: 0.95, opacity: 0, y: 10 }}
+              animate={{ scale: 1, opacity: 1, y: 0 }}
+              exit={{ scale: 0.95, opacity: 0, y: 10 }}
+              className="bg-brand-dark border border-brand-border rounded-xl shadow-2xl max-w-md w-full overflow-hidden flex flex-col"
+            >
+              {modalState.step === 'confirm' ? (
+                <>
+                  <div className="bg-red-500/10 border-b border-red-500/20 p-4 flex items-center gap-3">
+                    <div className="bg-red-500/20 p-2 rounded-full">
+                      <AlertTriangle className="h-5 w-5 text-red-500" />
+                    </div>
+                    <div className="flex-1">
+                      <h3 className="text-sm font-bold text-gray-200">Permanently Delete {modalState.label}?</h3>
+                      <p className="text-[11px] text-gray-400 mt-0.5">This action cannot be undone.</p>
+                    </div>
+                    <button 
+                      onClick={closeAndResetModal}
+                      className="text-gray-500 hover:text-gray-300 transition-colors"
+                    >
+                      <X className="h-5 w-5" />
+                    </button>
+                  </div>
+
+                  <div className="p-5 space-y-4">
+                    <div className="bg-brand-card p-3 rounded-lg border border-brand-border">
+                      <p className="text-xs text-gray-300">
+                        You are about to permanently delete all contents in <span className="font-semibold text-brand-accent">{modalState.label}</span>. 
+                        This will immediately free up roughly <span className="font-semibold text-brand-green">{modalState.value}</span> of storage space.
+                      </p>
+                    </div>
+
+                    <div className="bg-yellow-500/10 border border-yellow-500/20 p-3 rounded-lg flex items-start gap-2.5">
+                      <Loader2 className="h-4 w-4 text-yellow-500 mt-0.5 flex-shrink-0" />
+                      <p className="text-[11px] text-yellow-500/90 leading-relaxed">
+                        <strong className="text-yellow-500 block mb-0.5">Please be patient during cleanup</strong>
+                        This process may take a few moments depending on the number of files. Please do not close or reload the application while deletion is in progress to ensure complete removal.
+                      </p>
+                    </div>
+
+                    <div className="space-y-2">
+                      <label className="text-xs text-gray-400 font-semibold uppercase tracking-wider block">
+                        To confirm, type "delete" below:
+                      </label>
+                      <input
+                        type="text"
+                        placeholder="Type delete to confirm"
+                        value={confirmText}
+                        onChange={(e) => setConfirmText(e.target.value)}
+                        className="w-full bg-brand-darkest border border-brand-border rounded-lg px-3 py-2 text-sm text-gray-200 focus:outline-none focus:border-red-500/50 focus:ring-1 focus:ring-red-500/50 transition-all"
+                      />
+                    </div>
+                  </div>
+
+                  <div className="p-4 bg-brand-card border-t border-brand-border flex justify-end gap-3">
+                    <button
+                      onClick={closeAndResetModal}
+                      className="px-4 py-2 rounded-lg text-xs font-semibold text-gray-400 hover:text-gray-200 hover:bg-brand-darkest transition-colors"
+                    >
+                      Cancel
+                    </button>
+                    <button
+                      disabled={confirmText.toLowerCase().trim() !== 'delete' || quickCleanStatus === 'cleaning'}
+                      onClick={handleQuickClean}
+                      className="px-5 py-2 rounded-lg text-xs font-semibold text-white bg-red-600 hover:bg-red-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors flex items-center gap-2"
+                    >
+                      {quickCleanStatus === 'cleaning' ? (
+                        <>
+                          <Loader2 className="h-4 w-4 animate-spin" />
+                          Deleting...
+                        </>
+                      ) : (
+                        <>
+                          <Trash2 className="h-4 w-4" />
+                          Permanently Delete
+                        </>
+                      )}
+                    </button>
+                  </div>
+                </>
+              ) : (
+                <>
+                  {/* SUCCESS SUMMARY STEP */}
+                  <div className="bg-brand-green/10 border-b border-brand-green/20 p-4 flex items-center gap-3">
+                    <div className="bg-brand-green/20 p-2 rounded-full">
+                      <ShieldCheck className="h-5 w-5 text-brand-green" />
+                    </div>
+                    <div className="flex-1">
+                      <h3 className="text-sm font-bold text-gray-200">Cleanup Successful!</h3>
+                      <p className="text-[11px] text-gray-400 mt-0.5">{modalState.label} has been successfully cleared.</p>
+                    </div>
+                  </div>
+                  
+                  <div className="p-5 space-y-4">
+                    <div className="bg-brand-card rounded-lg border border-brand-border p-4 space-y-3">
+                      <div className="flex justify-between items-center text-xs">
+                        <span className="text-gray-400">Previous Allocation:</span>
+                        <span className="font-mono text-gray-300">{modalState.value}</span>
+                      </div>
+                      <div className="flex justify-between items-center text-xs">
+                        <span className="text-gray-400">Files Removed:</span>
+                        <span className="font-mono text-brand-accent">{quickCleanFilesDeleted} files</span>
+                      </div>
+                      <div className="flex justify-between items-center text-xs border-t border-brand-border/50 pt-2">
+                        <span className="font-semibold text-gray-300">Total Freed Space:</span>
+                        <span className="font-mono font-bold text-brand-green text-sm">+{formatBytes(quickCleanBytesFreed)}</span>
+                      </div>
+                      <div className="flex justify-between items-center text-xs bg-brand-darkest/50 -mx-4 -mb-4 p-3 mt-2 rounded-b-lg border-t border-brand-border">
+                        <span className="text-gray-400">Remaining Usage:</span>
+                        <span className="font-mono text-gray-200">
+                           {formatBytes(Math.max(0, modalState.bytesValue - quickCleanBytesFreed))}
+                        </span>
+                      </div>
+                    </div>
+                  </div>
+
+                  <div className="p-4 bg-brand-card border-t border-brand-border flex justify-end">
+                    <button
+                      onClick={closeAndResetModal}
+                      className="px-6 py-2.5 rounded-lg text-xs font-bold text-white bg-brand-accent hover:bg-brand-accent/90 transition-colors w-full"
+                    >
+                      Acknowledge & Close
+                    </button>
+                  </div>
+                </>
+              )}
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
 
       <AnimatePresence mode="wait">
         {isSystemLoading ? (
@@ -255,43 +446,78 @@ export default function Dashboard() {
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
               {[
                 {
+                  id: 'recycle_bin',
                   label: 'Recycle Bin Size',
                   value: formatBytes(recycleBinInfo.size_bytes),
+                  rawBytes: recycleBinInfo.size_bytes,
                   desc: `${recycleBinInfo.items_count} file${recycleBinInfo.items_count !== 1 ? 's' : ''} queued`,
                   icon: Trash2,
-                  color: 'text-brand-accent'
+                  color: 'text-brand-accent',
+                  clickable: true
                 },
                 {
+                  id: 'temp_files',
                   label: 'Temporary Files',
                   value: formatBytes(dashboardStats.temp_size_bytes),
+                  rawBytes: dashboardStats.temp_size_bytes,
                   desc: `${dashboardStats.temp_items_count} file${dashboardStats.temp_items_count !== 1 ? 's' : ''} cached`,
                   icon: RefreshCw,
-                  color: 'text-brand-amber'
+                  color: 'text-brand-amber',
+                  clickable: true
                 },
                 {
+                  id: 'browser_caches',
                   label: 'Browser Caches',
                   value: formatBytes(dashboardStats.browser_size_bytes),
+                  rawBytes: dashboardStats.browser_size_bytes,
                   desc: `${dashboardStats.browser_items_count} cache file${dashboardStats.browser_items_count !== 1 ? 's' : ''}`,
                   icon: Layers,
-                  color: 'text-brand-green'
+                  color: 'text-brand-green',
+                  clickable: true
                 },
                 {
+                  id: 'exclusion',
                   label: 'Exclusion Filters',
                   value: '9 categories',
+                  rawBytes: 0,
                   desc: '.git, node_modules, VMs active',
                   icon: ShieldAlert,
-                  color: 'text-gray-400'
+                  color: 'text-gray-400',
+                  clickable: false
                 }
-              ].map((stat, idx) => (
-                <div key={idx} className="glass-card p-4 flex items-center justify-between border border-brand-border">
-                  <div className="space-y-1">
-                    <span className="text-[10px] uppercase text-gray-500 font-semibold tracking-wider">{stat.label}</span>
-                    <span className="font-bold text-gray-200 block text-lg">{stat.value}</span>
-                    <span className="text-[10px] text-gray-400 block">{stat.desc}</span>
+              ].map((stat, idx) => {
+                const isCleaningThis = modalState.targetId === stat.id && quickCleanStatus === 'cleaning';
+                return (
+                  <div 
+                    key={idx} 
+                    onClick={() => stat.clickable && handleCardClick(stat.id, stat.label, stat.value, stat.rawBytes)}
+                    className={`glass-card p-4 flex items-center justify-between border border-brand-border transition-all ${
+                      stat.clickable ? 'cursor-pointer hover:bg-brand-card/80 hover:border-brand-accent/50 hover:shadow-lg hover:-translate-y-0.5 group' : ''
+                    }`}
+                  >
+                    <div className="space-y-1">
+                      <span className="text-[10px] uppercase text-gray-500 font-semibold tracking-wider flex items-center gap-1.5">
+                        {stat.label}
+                        {stat.clickable && <span className="text-[8px] bg-brand-darkest border border-brand-border px-1.5 py-0.5 rounded text-gray-400 font-mono group-hover:text-brand-accent group-hover:border-brand-accent/30 transition-colors">CLEAN</span>}
+                      </span>
+                      <span className="font-bold text-gray-200 block text-lg h-7 flex items-center">
+                        {isCleaningThis ? (
+                          <span className="flex items-center gap-2 text-sm text-brand-accent">
+                            <Loader2 className="h-4 w-4 animate-spin" />
+                            Processing...
+                          </span>
+                        ) : (
+                          stat.value
+                        )}
+                      </span>
+                      <span className="text-[10px] text-gray-400 block h-4">
+                        {isCleaningThis ? 'Waiting for backend...' : stat.desc}
+                      </span>
+                    </div>
+                    <stat.icon className={`h-5 w-5 ${stat.color} flex-shrink-0 ${isCleaningThis ? 'animate-pulse opacity-50' : ''}`} />
                   </div>
-                  <stat.icon className={`h-5 w-5 ${stat.color} flex-shrink-0`} />
-                </div>
-              ))}
+                );
+              })}
             </div>
           </motion.div>
         )}

@@ -132,6 +132,10 @@ ipcMain.on('ipc:request', (event, packet) => {
         rpcMethod = 'quarantine.restore';
         rpcParams = { id: data.id, custom_destination: data.customDestination };
         break;
+      case 'system:quick_clean':
+        rpcMethod = 'system.quick_clean';
+        rpcParams = { target: data.target };
+        break;
       case 'developer:setMode':
         rpcMethod = 'system.set_developer_mode';
         rpcParams = { enabled: data.enabled };

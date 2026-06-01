@@ -56,12 +56,52 @@ export default function DuplicateFinder() {
     useAppStore.setState({ duplicatesStatus: 'scanning', duplicatesList: [] });
     if (window.api) {
       window.api.sendRequest('duplicates:start', { folders: [scanFolder.trim()] });
+    } else {
+      // Browser mock duplicate finder simulation
+      let count = 0;
+      const total = 240;
+      const interval = setInterval(() => {
+        count += Math.floor(Math.random() * 20) + 10;
+        if (count >= total) {
+          count = total;
+          clearInterval(interval);
+          setActiveScan(false);
+          useAppStore.setState({
+            duplicatesStatus: 'completed',
+            duplicatesList: [
+              {
+                sha256: 'a94f8fe5ccb19ba61c4c0873d391e987982fbbd3',
+                size: 1288490188, // 1.2 GB
+                files: [
+                  `${scanFolder}\\vacation_vlog.mp4`,
+                  `${scanFolder}\\Desktop\\copies\\vacation_vlog.mp4`
+                ]
+              },
+              {
+                sha256: 'b82f091c52119ba61c4c0873d391e987982fbbd3',
+                size: 16148070, // 15.4 MB
+                files: [
+                  `${scanFolder}\\tax_report_2025.pdf`,
+                  `${scanFolder}\\Downloads\\tax_report_2025_copy.pdf`
+                ]
+              }
+            ]
+          });
+        } else {
+          setProgressInfo({ processed_count: count, total_count: total });
+        }
+      }, 100);
+      window._duplicateInterval = interval;
     }
   };
 
   const handleCancelDuplicateScan = () => {
     if (window.api) {
       window.api.sendRequest('scanner:cancel');
+    } else {
+      if (window._duplicateInterval) {
+        clearInterval(window._duplicateInterval);
+      }
     }
     setActiveScan(false);
     useAppStore.setState({ duplicatesStatus: 'cancelled' });

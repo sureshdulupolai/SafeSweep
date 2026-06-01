@@ -22,10 +22,6 @@ export const useAppStore = create((set, get) => {
   let unsubscribeError = null;
 
   return {
-    // Current Active panel view (dashboard, cleaner, duplicates, quarantine, settings)
-    activePanel: 'dashboard',
-    setActivePanel: (panel) => set({ activePanel: panel }),
-
     // Settings & Mode parameters
     developerMode: false,
     setDeveloperMode: (enabled) => {
@@ -70,7 +66,30 @@ export const useAppStore = create((set, get) => {
     // Quarantine recoveries
     quarantineItems: [],
     fetchQuarantine: () => {
-      if (window.api) window.api.sendRequest('quarantine:list');
+      if (window.api) {
+        window.api.sendRequest('quarantine:list');
+      } else {
+        if (get().quarantineItems.length === 0) {
+          set({
+            quarantineItems: [
+              {
+                id: 'q_item_1',
+                name: 'cracked_game_patch.exe',
+                directory: 'C:\\Users\\User\\Downloads',
+                size: 48024800,
+                created_at: new Date(Date.now() - 4 * 3600 * 1000).toISOString()
+              },
+              {
+                id: 'q_item_2',
+                name: 'unknown_installer.tmp',
+                directory: 'C:\\Users\\User\\AppData\\Local\\Temp',
+                size: 122880,
+                created_at: new Date(Date.now() - 2 * 3600 * 1000).toISOString()
+              }
+            ]
+          });
+        }
+      }
     },
 
     // System alerts from Watchdog
@@ -537,12 +556,58 @@ export const useAppStore = create((set, get) => {
     },
 
     startScan: (targetPath) => {
-      set({ scanStatus: 'scanning' });
-      if (window.api) window.api.sendRequest('scanner:start', { path: targetPath, scanMode: get().scanMode });
+      set({ 
+        scanStatus: 'scanning',
+        scannedCount: 0,
+        scannedBytes: 0,
+        scannedFiles: []
+      });
+      if (window.api) {
+        window.api.sendRequest('scanner:start', { path: targetPath, scanMode: get().scanMode });
+      } else {
+        // High-fidelity browser mock scanning simulation
+        let currentCount = 0;
+        const totalSimulated = 12420;
+        const interval = setInterval(() => {
+          currentCount += Math.floor(Math.random() * 800) + 400;
+          if (currentCount >= totalSimulated) {
+            currentCount = totalSimulated;
+            clearInterval(interval);
+            set({
+              scanStatus: 'completed',
+              scannedCount: totalSimulated,
+              scannedBytes: 8589934592,
+              safeModeEnforced: get().scanMode === 'balanced',
+              scannedFiles: [
+                { path: `${targetPath}\\temp_installer.msi`, size: 471859200, risk: 'SAFE' },
+                { path: `${targetPath}\\large_video_copy.mp4`, size: 2254857830, risk: 'LOW' },
+                { path: 'C:\\Windows\\System32\\drivers\\etc\\hosts', size: 820, risk: 'CRITICAL' },
+                { path: `${targetPath}\\chrome_installer.exe`, size: 125829120, risk: 'SAFE' },
+                { path: `${targetPath}\\cache_db.bin`, size: 89128960, risk: 'SAFE' },
+                { path: 'C:\\Windows\\System32\\kernel32.dll', size: 7130368, risk: 'CRITICAL' },
+                { path: `${targetPath}\\node_modules\\webpack\\bin.js`, size: 15360, risk: 'LOW' },
+                { path: `${targetPath}\\notes.txt`, size: 2048, risk: 'SAFE' }
+              ]
+            });
+          } else {
+            set({
+              scannedCount: currentCount,
+              scannedBytes: Math.floor((currentCount / totalSimulated) * 8589934592)
+            });
+          }
+        }, 100);
+        get()._scanInterval = interval;
+      }
     },
 
     cancelScan: () => {
-      if (window.api) window.api.sendRequest('scanner:cancel');
+      if (window.api) {
+        window.api.sendRequest('scanner:cancel');
+      } else {
+        if (get()._scanInterval) {
+          clearInterval(get()._scanInterval);
+        }
+      }
       set({ scanStatus: 'cancelled' });
     },
 
@@ -583,11 +648,56 @@ export const useAppStore = create((set, get) => {
     // Deletion executions
     startDeletion: (targets, permanent = false) => {
       set({ deleteStatus: 'deleting' });
-      if (window.api) window.api.sendRequest('delete:start', { targets, permanent });
+      if (window.api) {
+        window.api.sendRequest('delete:start', { targets, permanent });
+      } else {
+        // High-fidelity browser mock deletion simulation
+        let deleted = 0;
+        const total = targets.length;
+        const interval = setInterval(() => {
+          deleted += Math.floor(Math.random() * 2) + 1;
+          if (deleted >= total) {
+            deleted = total;
+            clearInterval(interval);
+            
+            const currentFiles = get().scannedFiles;
+            const remainingFiles = currentFiles.filter(f => !targets.includes(f.path));
+            
+            set({
+              deleteStatus: 'completed',
+              deletedCount: total,
+              failedCount: 0,
+              scannedFiles: remainingFiles,
+              activeSimulation: null
+            });
+            
+            const totalFreed = targets.reduce((acc, path) => {
+              const fileObj = currentFiles.find(f => f.path === path);
+              return acc + (fileObj ? fileObj.size : 0);
+            }, 0);
+            set((state) => ({
+              dashboardStats: {
+                ...state.dashboardStats,
+                temp_size_bytes: Math.max(0, state.dashboardStats.temp_size_bytes - totalFreed)
+              }
+            }));
+          } else {
+            set({ deletedCount: deleted });
+          }
+        }, 150);
+        get()._deleteInterval = interval;
+      }
     },
 
     cancelDeletion: () => {
-      if (window.api) window.api.sendRequest('delete:cancel');
+      if (window.api) {
+        window.api.sendRequest('delete:cancel');
+      } else {
+        if (get()._deleteInterval) {
+          clearInterval(get()._deleteInterval);
+        }
+      }
+      set({ deleteStatus: 'idle' });
     },
 
     // Quick Clean
@@ -621,7 +731,13 @@ export const useAppStore = create((set, get) => {
 
     // Quarantine restorations
     restoreQuarantineItem: (itemId, destination = null) => {
-      if (window.api) window.api.sendRequest('quarantine:restore', { id: itemId, customDestination: destination });
+      if (window.api) {
+        window.api.sendRequest('quarantine:restore', { id: itemId, customDestination: destination });
+      } else {
+        set((state) => ({
+          quarantineItems: state.quarantineItems.filter(item => item.id !== itemId)
+        }));
+      }
     },
 
     // Add and remove custom exclusions - optimistic update + backend sync

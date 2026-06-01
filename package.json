@@ -13,7 +13,6 @@
     "preelectron:dev": "powershell -Command \"$p = netstat -ano | Select-String ':5173\\s' | ForEach-Object { ($_ -split '\\s+')[-1] } | Select-Object -First 1; if ($p) { taskkill /PID $p /F 2>$null }; Start-Sleep -Milliseconds 300\"",
     "electron:dev": "concurrently --prefix none \"npm run dev --silent\" \"wait-on http://localhost:5173 && electron --no-deprecation .\"",
     "dist": "electron-builder"
-
   },
   "keywords": [
     "utility",
@@ -29,6 +28,7 @@
     "lucide-react": "^0.381.0",
     "react": "^18.3.1",
     "react-dom": "^18.3.1",
+    "react-router-dom": "^7.16.0",
     "react-window": "^1.8.10",
     "zustand": "^4.5.2"
   },

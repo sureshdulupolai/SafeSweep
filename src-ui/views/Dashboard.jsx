@@ -2,6 +2,7 @@ import React, { useEffect, useState } from 'react';
 import { ShieldCheck, HardDrive, RefreshCw, Layers, ShieldAlert, Cpu, Trash2, Loader2, AlertTriangle, X } from 'lucide-react';
 import { useAppStore } from '../store/useAppStore';
 import { motion, AnimatePresence } from 'framer-motion';
+import { useNavigate } from 'react-router-dom';
 
 // Pulsing skeleton placeholder block
 function Skeleton({ className = '' }) {
@@ -15,7 +16,7 @@ export default function Dashboard() {
   const scanStatus = useAppStore((state) => state.scanStatus);
   const scanMode = useAppStore((state) => state.scanMode);
   const setScanMode = useAppStore((state) => state.setScanMode);
-  const setActivePanel = useAppStore((state) => state.setActivePanel);
+  const navigate = useNavigate();
   const isSystemLoading = useAppStore((state) => state.isSystemLoading);
 
   // All data comes from the store - no local state needed
@@ -75,7 +76,7 @@ export default function Dashboard() {
 
   const handleScanTrigger = () => {
     startScan('C:\\');
-    setActivePanel('cleaner');
+    navigate('/cleaner');
   };
 
   const handleCardClick = (id, label, value, rawBytes) => {
@@ -88,9 +89,12 @@ export default function Dashboard() {
     const wasSuccess = modalState.step === 'success';
     setModalState({ isOpen: false, step: 'confirm', targetId: null, label: '', value: '', bytesValue: 0 });
     setConfirmText('');
+    useAppStore.setState({ quickCleanStatus: 'idle' });
     if (wasSuccess) {
-      // Hard reload to guarantee all data is fetched fresh
-      window.location.reload();
+      // Fetch fresh data dynamically without reloading the browser page
+      fetchDiskSpace();
+      fetchDashboardStats();
+      fetchRecycleBin();
     }
   };
 

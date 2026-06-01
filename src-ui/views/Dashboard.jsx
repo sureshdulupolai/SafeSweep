@@ -449,13 +449,6 @@ export default function Dashboard() {
                 </div>
               ) : (
                 <div className="md:col-span-2 glass-card p-5 flex flex-col md:flex-row items-center gap-6 justify-around premium-glow-subtle relative">
-                  {/* Subtle sync/polling loader in the corner */}
-                  {isDiskLoading && (
-                    <div className="absolute top-3 right-3 flex items-center gap-1.5 text-[9px] font-semibold text-brand-accent bg-brand-accent/10 border border-brand-accent/20 px-2 py-0.5 rounded-full shadow-inner animate-pulse">
-                      <Loader2 className="h-2.5 w-2.5 animate-spin" />
-                      <span>Syncing...</span>
-                    </div>
-                  )}
 
                   <div className="relative w-40 h-40 flex items-center justify-center flex-shrink-0">
                     <svg className="w-full h-full transform -rotate-90" viewBox="0 0 100 100">
@@ -635,7 +628,6 @@ export default function Dashboard() {
                             </span>
                           ) : (
                             <span className={`text-[8px] bg-brand-darkest border px-1.5 py-0.5 rounded font-mono transition-colors flex items-center gap-1 ${stat.badgeColor} ${stat.clickable ? 'group-hover:text-brand-accent group-hover:border-brand-accent/30' : ''}`}>
-                              {isFetchingThis && <Loader2 className="h-2 w-2 animate-spin text-brand-accent" />}
                               CLEAN
                             </span>
                           )

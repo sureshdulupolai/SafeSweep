@@ -95,7 +95,7 @@ ipcMain.on('ipc:request', (event, packet) => {
         break;
       case 'delete:start':
         rpcMethod = 'delete.start_delete';
-        rpcParams = { targets: data.targets, permanent: data.permanent };
+        rpcParams = { targets: data.targets, permanent: data.permanent, scan_path: data.scanPath };
         break;
       case 'delete:cancel':
         rpcMethod = 'delete.cancel_delete';

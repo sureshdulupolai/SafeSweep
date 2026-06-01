@@ -59,10 +59,11 @@ def send_to_recycle_bin(path_str):
     return True
 
 class DeletionSession:
-    def __init__(self, targets_list, permanent=False, rpc_notify_callback=None):
+    def __init__(self, targets_list, permanent=False, rpc_notify_callback=None, scan_path=None):
         self.targets = [normalize_windows_path(t) for t in targets_list]
         self.permanent = permanent
         self.rpc_notify_callback = rpc_notify_callback
+        self.scan_path = normalize_windows_path(scan_path) if scan_path else None
         self.cancelled = False
         self.journal = []
         self.deleted_files = []
@@ -109,6 +110,9 @@ class DeletionSession:
                     "failed_count": len(self.failed_files) + len(simulation["files_skipped"])
                 })
 
+        # Clean up empty parent directories bottom-up
+        self._cleanup_empty_folders()
+
         logger.info("Finished deletion transaction session.", {
             "deleted_count": len(self.deleted_files),
             "failed_count": len(self.failed_files)
@@ -119,6 +123,81 @@ class DeletionSession:
             "deleted": self.deleted_files,
             "failed": self.failed_files + [{"path": f["path"], "reason": f["reason"]} for f in simulation["files_skipped"]]
         }
+
+    def _cleanup_empty_folders(self):
+        """
+        Cleans up empty parent directories of deleted files bottom-up.
+        If a folder contains even a single file or a non-empty directory,
+        it is preserved and not deleted.
+        """
+        if not self.deleted_files:
+            return
+
+        from exclusion_engine import exclusion_engine
+
+        # Collect all unique candidate parent directory paths from deleted files
+        candidate_dirs = set()
+        for file_path in self.deleted_files:
+            try:
+                # Walk up to collect parent dirs
+                current = os.path.dirname(os.path.abspath(file_path))
+                normalized_scan = os.path.abspath(self.scan_path).lower() if self.scan_path else None
+                
+                while True:
+                    current_abs = os.path.abspath(current)
+                    current_lower = current_abs.lower()
+                    
+                    # Stop if we hit a drive root
+                    parent = os.path.dirname(current_abs)
+                    if parent == current_abs:
+                        break
+                        
+                    # Stop if scan_path is set and we've reached it or gone outside it
+                    if normalized_scan:
+                        if current_lower == normalized_scan:
+                            break
+                        if not current_lower.startswith(normalized_scan):
+                            break
+                            
+                    # Avoid system directories
+                    if current_lower in [
+                        "c:\\", "c:\\windows", "c:\\windows\\system32",
+                        "c:\\program files", "c:\\program files (x86)",
+                        "c:\\users"
+                    ]:
+                        break
+                        
+                    # Avoid excluded directories
+                    if exclusion_engine.is_excluded(current_abs):
+                        break
+                        
+                    candidate_dirs.add(current_abs)
+                    current = parent
+            except Exception:
+                pass
+
+        # Sort the candidate directories by depth/length in descending order (bottom-up)
+        sorted_dirs = sorted(list(candidate_dirs), key=lambda d: len(os.path.splitdrive(d)[1].split(os.sep)), reverse=True)
+
+        logger.info(f"Checking {len(sorted_dirs)} candidate directories for empty-folder cleanup.")
+
+        cleaned_count = 0
+        for dir_path in sorted_dirs:
+            if self.cancelled:
+                break
+            try:
+                if os.path.exists(dir_path) and os.path.isdir(dir_path):
+                    # Check if empty (no files and no folders inside)
+                    entries = os.listdir(dir_path)
+                    if len(entries) == 0:
+                        # Directory is completely empty! Let's delete it
+                        logger.info(f"Cleaning up empty directory: {dir_path}")
+                        os.rmdir(dir_path)
+                        cleaned_count += 1
+            except Exception as e:
+                logger.warn(f"Failed to cleanup directory {dir_path}: {str(e)}")
+
+        logger.info(f"Empty-folder cleanup finished. Removed {cleaned_count} empty directories.")
 
     def _process_deletion_chunk(self, chunk):
         """Processes a single batch block of target paths."""

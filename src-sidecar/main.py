@@ -230,6 +230,7 @@ def handle_start_delete(params):
     global active_delete_task
     targets = params.get("targets", [])
     permanent = params.get("permanent", False)
+    scan_path = params.get("scan_path")
     
     if not targets:
         raise CleanerError("Missing parameter 'targets' for deletion.")
@@ -238,7 +239,7 @@ def handle_start_delete(params):
         if active_delete_task and not active_delete_task.cancelled:
             raise CleanerError("A deletion transaction is already actively running.")
         
-        active_delete_task = DeletionSession(targets, permanent, rpc_notify)
+        active_delete_task = DeletionSession(targets, permanent, rpc_notify, scan_path)
 
     # Create session journal before starting
     crash_recovery_manager.create_journal(targets, permanent)
@@ -553,7 +554,7 @@ class LocalCleanerHTTPServer(BaseHTTPRequestHandler):
 
     def send_cors_headers(self):
         self.send_header("Access-Control-Allow-Origin", "*")
-        self.send_header("Access-Control-Allow-Methods", "GET, OPTIONS")
+        self.send_header("Access-Control-Allow-Methods", "GET, POST, OPTIONS")
         self.send_header("Access-Control-Allow-Headers", "Content-Type")
 
     def do_OPTIONS(self):
@@ -588,6 +589,54 @@ class LocalCleanerHTTPServer(BaseHTTPRequestHandler):
                     if "target=" in endpoint:
                         target = endpoint.split("target=")[1].split("&")[0]
                     res = handle_quick_clean({"target": target})
+                    self.wfile.write(json.dumps(res).encode())
+                elif endpoint.startswith("scan"):
+                    import urllib.parse
+                    scan_path = ""
+                    if "path=" in endpoint:
+                        encoded_path = endpoint.split("path=")[1].split("&")[0]
+                        scan_path = urllib.parse.unquote(encoded_path)
+                    
+                    if not scan_path:
+                        self.wfile.write(json.dumps({"error": "Missing path parameter"}).encode())
+                    else:
+                        files_list = []
+                        def accumulate_files(method, params):
+                            if method == "scanner.progress":
+                                files_list.extend(params.get("files", []))
+                        
+                        task = ScanningTask(scan_path, "balanced", rpc_notify_callback=accumulate_files)
+                        res = task.execute()
+                        res["files"] = files_list
+                        self.wfile.write(json.dumps(res).encode())
+                else:
+                    self.wfile.write(json.dumps({"error": "endpoint not found"}).encode())
+            except Exception as e:
+                self.wfile.write(json.dumps({"error": str(e)}).encode())
+        else:
+            self.send_response(404)
+            self.end_headers()
+
+    def do_POST(self):
+        if self.path.startswith("/api/"):
+            content_length = int(self.headers['Content-Length'])
+            post_data = self.rfile.read(content_length)
+            data = json.loads(post_data.decode('utf-8'))
+            
+            self.send_response(200)
+            self.send_header("Content-type", "application/json")
+            self.send_cors_headers()
+            self.end_headers()
+            
+            endpoint = self.path[5:]
+            try:
+                if endpoint == "delete":
+                    targets = data.get("targets", [])
+                    permanent = data.get("permanent", False)
+                    scan_path = data.get("scan_path")
+                    
+                    session = DeletionSession(targets, permanent, scan_path=scan_path)
+                    res = session.execute()
                     self.wfile.write(json.dumps(res).encode())
                 else:
                     self.wfile.write(json.dumps({"error": "endpoint not found"}).encode())

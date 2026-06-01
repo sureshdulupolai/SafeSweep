@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Play, Square, Trash2, FolderSearch, ShieldCheck, ShieldAlert, Sparkles } from 'lucide-react';
+import { Play, Square, Trash2, FolderSearch, ShieldCheck, ShieldAlert, Sparkles, Loader2 } from 'lucide-react';
 import { useAppStore } from '../store/useAppStore';
 import FileTree from '../components/FileTree';
 import SafeModeWatermark from '../components/SafeModeWatermark';
@@ -22,6 +22,8 @@ export default function Cleaner() {
   const clearSimulation = useAppStore((state) => state.clearSimulation);
   const defaultDownloads = useAppStore((state) => state.defaultDownloads);
   const defaultDesktop = useAppStore((state) => state.defaultDesktop);
+  const deletedCount = useAppStore((state) => state.deletedCount);
+  const failedCount = useAppStore((state) => state.failedCount);
 
   const [scanPath, setScanPath] = useState('');
   const [selectedPaths, setSelectedPaths] = useState([]);
@@ -172,6 +174,26 @@ export default function Cleaner() {
       {/* Warning/Watermark Section */}
       <SafeModeWatermark visible={safeModeEnforced} />
 
+      {/* Success banner after deletion */}
+      {deleteStatus === 'completed' && (
+        <motion.div 
+          initial={{ opacity: 0, y: -10 }}
+          animate={{ opacity: 1, y: 0 }}
+          className="bg-brand-green/10 border border-brand-green/20 p-4 rounded-xl flex items-center justify-between text-brand-green text-xs font-semibold select-none animate-fadeIn"
+        >
+          <div className="flex items-center gap-2">
+            <ShieldCheck className="h-5 w-5" />
+            <span>Cleanup finished successfully! {deletedCount} assets safely unlinked.</span>
+          </div>
+          <button 
+            onClick={() => useAppStore.setState({ deleteStatus: 'idle' })}
+            className="text-gray-400 hover:text-gray-200 transition-colors"
+          >
+            Dismiss
+          </button>
+        </motion.div>
+      )}
+
       {/* In-scanning Progress bar visualizer */}
       {scanStatus === 'scanning' && (
         <div className="glass-card p-4 space-y-2">
@@ -191,8 +213,32 @@ export default function Cleaner() {
         </div>
       )}
 
+      {/* In-deleting Progress bar visualizer */}
+      {deleteStatus === 'deleting' && (
+        <div className="glass-card p-4 space-y-2">
+          <div className="flex justify-between items-center text-xs font-mono">
+            <span className="text-gray-400 flex items-center gap-1.5">
+              <Loader2 className="h-4 w-4 animate-spin text-brand-rose" />
+              <span>Wiping Targeted Assets ({permanentDelete ? 'Cryptographic Shred' : 'Recycle Bin relocation'})...</span>
+            </span>
+            <span className="text-brand-rose font-bold">
+              {deletedCount} / {selectedPaths.length} files processed
+            </span>
+          </div>
+          {/* Progress bar */}
+          <div className="w-full bg-brand-darkest rounded-full h-2 overflow-hidden">
+            <motion.div 
+              initial={{ width: '0%' }}
+              animate={{ width: `${selectedPaths.length > 0 ? (deletedCount / selectedPaths.length) * 100 : 0}%` }}
+              transition={{ duration: 0.1 }}
+              className="bg-brand-rose h-full"
+            />
+          </div>
+        </div>
+      )}
+
       {/* Main File tree selection layout */}
-      {scanStatus === 'completed' && (
+      {scanStatus === 'completed' && deleteStatus !== 'deleting' && (
         <div className="flex-1 flex flex-col min-h-[350px] space-y-4">
           <div className="flex justify-between items-center">
             <div className="flex items-center gap-3 text-xs">
@@ -210,6 +256,7 @@ export default function Cleaner() {
 
           <FileTree 
             files={scannedFiles}
+            scanPath={scanPath}
             selectedPaths={selectedPaths}
             onToggleSelection={handleToggleSelection}
           />
@@ -256,7 +303,7 @@ export default function Cleaner() {
         simulation={activeSimulation}
         permanent={permanentDelete}
         onConfirm={(perm) => {
-          startDeletion(selectedPaths, perm);
+          startDeletion(selectedPaths, perm, scanPath);
         }}
       />
     </motion.div>

@@ -2,23 +2,38 @@ import React, { useState, useMemo } from 'react';
 import { FixedSizeList as List } from 'react-window';
 import { Folder, FolderOpen, File, ShieldAlert, CheckSquare, Square, MinusSquare } from 'lucide-react';
 
-export default function FileTree({ files, selectedPaths, onToggleSelection }) {
+export default function FileTree({ files, scanPath, selectedPaths, onToggleSelection }) {
   const [expandedFolders, setExpandedFolders] = useState({});
 
-  // 1. Build a nested tree structure out of flat path entries
+  // 1. Build a nested tree structure out of flat path entries relative to the target scanPath
   const treeData = useMemo(() => {
     const root = { name: 'root', path: 'root', isDir: true, children: {} };
+    const normalizedScanPath = scanPath ? scanPath.replace(/[\\/]+/g, '\\').replace(/\\$/, '') : '';
 
     files.forEach((file) => {
-      // Split by os sep
-      const parts = file.path.split(/[\\/]/);
+      const normalizedFilePath = file.path.replace(/[\\/]+/g, '\\');
+      let relativePath = normalizedFilePath;
+      
+      // Compute relative path to avoid C:\Users\user nesting at the root level of the folder tree
+      if (normalizedScanPath && normalizedFilePath.toLowerCase().startsWith(normalizedScanPath.toLowerCase())) {
+        relativePath = normalizedFilePath.substring(normalizedScanPath.length).replace(/^\\/, '');
+      }
+
+      const parts = relativePath.split(/[\\/]/);
       let current = root;
 
       parts.forEach((part, index) => {
         if (!part) return;
 
         const isLast = index === parts.length - 1;
-        const currentPath = parts.slice(0, index + 1).join('\\');
+        let currentPath = '';
+        
+        if (normalizedScanPath && normalizedFilePath.toLowerCase().startsWith(normalizedScanPath.toLowerCase())) {
+          const subParts = parts.slice(0, index + 1);
+          currentPath = normalizedScanPath + '\\' + subParts.join('\\');
+        } else {
+          currentPath = parts.slice(0, index + 1).join('\\');
+        }
 
         if (!current.children[part]) {
           current.children[part] = {
@@ -38,7 +53,6 @@ export default function FileTree({ files, selectedPaths, onToggleSelection }) {
           current.children[part].risk = file.risk;
         }
 
-        // Accumulate directory sizes
         if (!isLast) {
           current.children[part].size += file.size;
         }
@@ -48,7 +62,7 @@ export default function FileTree({ files, selectedPaths, onToggleSelection }) {
     });
 
     return root;
-  }, [files]);
+  }, [files, scanPath]);
 
   // 2. Recursively flatten the tree into visible nodes based on active expanded folder parameters
   const flatNodes = useMemo(() => {
@@ -69,7 +83,7 @@ export default function FileTree({ files, selectedPaths, onToggleSelection }) {
       if (node.path === 'root' || expandedFolders[node.path]) {
         const sortedChildren = Object.values(node.children).sort((a, b) => {
           if (a.isDir !== b.isDir) return a.isDir ? -1 : 1;
-          return a.name.localeCompare(b.name);
+          return a.name.localeCompare(b.name, undefined, { sensitivity: 'base', numeric: true });
         });
 
         sortedChildren.forEach((child) => traverse(child, depth + 1));
@@ -88,39 +102,38 @@ export default function FileTree({ files, selectedPaths, onToggleSelection }) {
   };
 
   const getCheckState = (node) => {
-    const isSelected = selectedPaths.includes(node.path);
-    if (isSelected) return 'checked';
-
-    // If it's a folder, check if children are checked
     if (node.isDir) {
-      // Find all nested files under this folder
       const subfiles = files.filter(f => f.path.startsWith(node.path + '\\') || f.path === node.path);
-      if (subfiles.length === 0) return 'unchecked';
+      const toggleableFiles = subfiles.filter(f => f.risk !== 'CRITICAL' && f.risk !== 'HIGH');
+      if (toggleableFiles.length === 0) return 'unchecked';
 
-      const selectedSubfiles = subfiles.filter(f => selectedPaths.includes(f.path));
-      if (selectedSubfiles.length === subfiles.length) return 'checked';
+      const selectedSubfiles = toggleableFiles.filter(f => selectedPaths.includes(f.path));
+      if (selectedSubfiles.length === toggleableFiles.length) return 'checked';
       if (selectedSubfiles.length > 0) return 'indeterminate';
+      return 'unchecked';
     }
 
-    return 'unchecked';
+    return selectedPaths.includes(node.path) ? 'checked' : 'unchecked';
   };
 
   const handleCheckboxClick = (node) => {
     const state = getCheckState(node);
     
-    // Toggle action
-    if (state === 'checked') {
-      // Uncheck all
-      const toRemove = files
-        .filter(f => f.path.startsWith(node.path + '\\') || f.path === node.path)
-        .map(f => f.path);
-      onToggleSelection(toRemove, false);
+    if (node.isDir) {
+      const subfiles = files.filter(f => f.path.startsWith(node.path + '\\') || f.path === node.path);
+      // Skip critical system files completely from select/deselect toggles
+      const toggleableFiles = subfiles.filter(f => f.risk !== 'CRITICAL' && f.risk !== 'HIGH');
+      
+      if (toggleableFiles.length === 0) return;
+      
+      if (state === 'checked') {
+        onToggleSelection(toggleableFiles.map(f => f.path), false);
+      } else {
+        onToggleSelection(toggleableFiles.map(f => f.path), true);
+      }
     } else {
-      // Check all
-      const toAdd = files
-        .filter(f => f.path.startsWith(node.path + '\\') || f.path === node.path)
-        .map(f => f.path);
-      onToggleSelection(toAdd, true);
+      if (node.risk === 'CRITICAL' || node.risk === 'HIGH') return;
+      onToggleSelection([node.path], state !== 'checked');
     }
   };
 
@@ -138,12 +151,21 @@ export default function FileTree({ files, selectedPaths, onToggleSelection }) {
     const node = flatNodes[index];
     const checkState = getCheckState(node);
     const isExpanded = expandedFolders[node.path];
+    const isProtected = node.risk === 'CRITICAL' || node.risk === 'HIGH';
 
     return (
       <div 
         style={style} 
-        className="flex items-center gap-2 hover:bg-brand-card/40 px-3 py-1 rounded transition-colors text-xs font-mono select-none cursor-pointer"
-        onClick={() => node.isDir ? toggleFolder(node.path) : handleCheckboxClick(node)}
+        className={`flex items-center gap-2 hover:bg-brand-card/40 px-3 py-1 rounded transition-colors text-xs font-mono select-none ${
+          isProtected ? 'opacity-50 cursor-not-allowed' : 'cursor-pointer'
+        }`}
+        onClick={() => {
+          if (node.isDir) {
+            toggleFolder(node.path);
+          } else {
+            if (!isProtected) handleCheckboxClick(node);
+          }
+        }}
       >
         {/* Indent Spacer */}
         <div style={{ width: `${(node.depth - 1) * 16}px` }} className="flex-shrink-0" />
@@ -152,9 +174,12 @@ export default function FileTree({ files, selectedPaths, onToggleSelection }) {
         <div 
           onClick={(e) => {
             e.stopPropagation();
+            if (isProtected) return;
             handleCheckboxClick(node);
           }}
-          className="text-gray-400 hover:text-brand-accent transition-colors mr-1"
+          className={`text-gray-400 hover:text-brand-accent transition-colors mr-1 ${
+            isProtected ? 'opacity-30 cursor-not-allowed' : 'cursor-pointer'
+          }`}
         >
           {checkState === 'checked' && <CheckSquare className="h-4 w-4 text-brand-accent" />}
           {checkState === 'unchecked' && <Square className="h-4 w-4" />}
@@ -171,19 +196,19 @@ export default function FileTree({ files, selectedPaths, onToggleSelection }) {
         </div>
 
         {/* Name Label */}
-        <span className="flex-1 truncate text-gray-300">{node.name}</span>
+        <span className={`flex-1 truncate ${isProtected ? 'text-gray-500 line-through' : 'text-gray-300'}`}>{node.name}</span>
 
         {/* Danger Badges for High/Critical risk files */}
         {node.risk === 'CRITICAL' && (
           <span className="bg-brand-rose/10 border border-brand-rose/20 text-brand-rose text-[9px] px-1 py-0.5 rounded flex items-center gap-0.5 font-sans font-semibold">
             <ShieldAlert className="h-3 w-3" />
-            <span>CRITICAL</span>
+            <span>SHIELDED</span>
           </span>
         )}
         
         {node.risk === 'HIGH' && (
           <span className="bg-brand-amber/10 border border-brand-amber/20 text-brand-amber text-[9px] px-1 py-0.5 rounded font-sans font-semibold">
-            WARNING
+            SHIELDED
           </span>
         )}
 

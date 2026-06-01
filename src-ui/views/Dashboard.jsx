@@ -25,6 +25,19 @@ export default function Dashboard() {
   const fetchDashboardStats = useAppStore((state) => state.fetchDashboardStats);
   const recycleBinInfo = useAppStore((state) => state.recycleBinInfo);
   const fetchRecycleBin = useAppStore((state) => state.fetchRecycleBin);
+
+  // New loading state hooks
+  const isDiskLoading = useAppStore((state) => state.isDiskLoading);
+  const isRecycleLoading = useAppStore((state) => state.isRecycleLoading);
+  const isStatsLoading = useAppStore((state) => state.isStatsLoading);
+
+  const [isInitialLoad, setIsInitialLoad] = useState(true);
+
+  useEffect(() => {
+    if (!isDiskLoading && !isRecycleLoading && !isStatsLoading) {
+      setIsInitialLoad(false);
+    }
+  }, [isDiskLoading, isRecycleLoading, isStatsLoading]);
   
   // Quick Clean Actions
   const quickClean = useAppStore((state) => state.quickClean);
@@ -350,60 +363,133 @@ export default function Dashboard() {
             {/* Main Grid: SVG Capacity Circle + Scan controls */}
             <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
               {/* SVG Disk visualizer */}
-              <div className="md:col-span-2 glass-card p-5 flex flex-col md:flex-row items-center gap-6 justify-around premium-glow-subtle">
-                <div className="relative w-40 h-40 flex items-center justify-center flex-shrink-0">
-                  <svg className="w-full h-full transform -rotate-90" viewBox="0 0 100 100">
-                    <circle
-                      cx="50" cy="50" r="40"
-                      className="stroke-brand-darkest fill-none"
-                      strokeWidth="7"
-                    />
-                    <motion.circle
-                      cx="50" cy="50" r="40"
-                      className="stroke-brand-accent fill-none"
-                      strokeWidth="7"
-                      strokeDasharray="251.2"
-                      initial={{ strokeDashoffset: 251.2 }}
-                      animate={{ strokeDashoffset: 251.2 - (251.2 * diskPercentage) / 100 }}
-                      transition={{ duration: 1.5, ease: "easeOut" }}
-                      strokeLinecap="round"
-                    />
-                  </svg>
-                  <div className="absolute flex flex-col items-center justify-center text-center">
-                    <span className="text-2xl font-bold text-gray-200">{Math.round(diskPercentage)}%</span>
-                    <span className="text-[10px] text-gray-400 tracking-wider uppercase mt-0.5">Disk Used</span>
-                  </div>
-                </div>
-
-                <div className="space-y-4 flex-1">
-                  <div className="flex items-center gap-3">
-                    <HardDrive className="h-5 w-5 text-brand-accent" />
-                    <div>
-                      <h3 className="font-semibold text-gray-200 text-sm">System Drive (C:)</h3>
-                      <p className="text-xs text-gray-400 mt-0.5">Physical NTFS partition with long path index overrides.</p>
+              {isDiskLoading && diskTotal === 0 ? (
+                /* Premium Disk Loader Card */
+                <div className="md:col-span-2 glass-card p-5 flex flex-col md:flex-row items-center gap-6 justify-around premium-glow-subtle relative overflow-hidden">
+                  {/* Glowing background highlights */}
+                  <div className="absolute top-0 right-0 w-24 h-24 bg-brand-accent/5 rounded-full blur-2xl animate-pulse" />
+                  
+                  {/* Left Side: Animated SVG Circular Scan Ring */}
+                  <div className="relative w-40 h-40 flex items-center justify-center flex-shrink-0">
+                    <svg className="w-full h-full transform -rotate-90" viewBox="0 0 100 100">
+                      <circle
+                        cx="50" cy="50" r="40"
+                        className="stroke-brand-darkest fill-none"
+                        strokeWidth="7"
+                      />
+                      <motion.circle
+                        cx="50" cy="50" r="40"
+                        className="stroke-brand-accent fill-none"
+                        strokeWidth="7"
+                        strokeDasharray="80 170"
+                        animate={{ rotate: 360 }}
+                        transition={{ repeat: Infinity, duration: 2, ease: "linear" }}
+                        strokeLinecap="round"
+                        style={{ originX: "50px", originY: "50px" }}
+                      />
+                    </svg>
+                    <div className="absolute flex flex-col items-center justify-center text-center">
+                      <Loader2 className="h-6 w-6 text-brand-accent animate-spin" />
+                      <span className="text-[9px] text-brand-accent font-semibold tracking-widest uppercase mt-2 animate-pulse">ANALYZING</span>
                     </div>
                   </div>
 
-                  <div className="grid grid-cols-2 gap-4 border-t border-brand-border pt-4 text-xs font-mono">
-                    <div>
-                      <span className="text-gray-500 block">Total Capacity</span>
-                      <span className="font-semibold text-gray-300 mt-1 block">{formatBytes(diskTotal)}</span>
+                  {/* Right Side: Drive Info Skeletons */}
+                  <div className="space-y-4 flex-1 w-full">
+                    <div className="flex items-center gap-3">
+                      <div className="p-2 bg-brand-accent/10 border border-brand-accent/20 rounded-lg text-brand-accent animate-pulse">
+                        <HardDrive className="h-5 w-5" />
+                      </div>
+                      <div className="space-y-1.5 flex-1">
+                        <h3 className="font-semibold text-gray-200 text-sm flex items-center gap-2">
+                          Querying System Drive (C:)
+                        </h3>
+                        <div className="h-2.5 w-3/4 bg-brand-card/60 rounded animate-pulse" />
+                      </div>
                     </div>
-                    <div>
-                      <span className="text-gray-500 block">Remaining Free</span>
-                      <span className="font-semibold text-brand-green mt-1 block">{formatBytes(diskFree)}</span>
-                    </div>
-                    <div>
-                      <span className="text-gray-500 block">Used Space</span>
-                      <span className="font-semibold text-brand-amber mt-1 block">{formatBytes(diskUsed)}</span>
-                    </div>
-                    <div>
-                      <span className="text-gray-500 block">Usage</span>
-                      <span className="font-semibold text-gray-300 mt-1 block">{Math.round(diskPercentage)}%</span>
+
+                    <div className="grid grid-cols-2 gap-4 border-t border-brand-border pt-4">
+                      {[
+                        { label: "Total Capacity", val: "Calculating..." },
+                        { label: "Remaining Free", val: "Measuring..." },
+                        { label: "Used Space", val: "Estimating..." },
+                        { label: "Usage", val: "Computing..." }
+                      ].map((item, idx) => (
+                        <div key={idx} className="space-y-1">
+                          <span className="text-gray-500 block text-xs">{item.label}</span>
+                          <span className="font-semibold text-gray-400 mt-1 text-xs block animate-pulse flex items-center gap-1.5 font-mono">
+                            <span className="w-1.5 h-1.5 bg-brand-accent/60 rounded-full animate-ping" />
+                            {item.val}
+                          </span>
+                        </div>
+                      ))}
                     </div>
                   </div>
                 </div>
-              </div>
+              ) : (
+                <div className="md:col-span-2 glass-card p-5 flex flex-col md:flex-row items-center gap-6 justify-around premium-glow-subtle relative">
+                  {/* Subtle sync/polling loader in the corner */}
+                  {isDiskLoading && (
+                    <div className="absolute top-3 right-3 flex items-center gap-1.5 text-[9px] font-semibold text-brand-accent bg-brand-accent/10 border border-brand-accent/20 px-2 py-0.5 rounded-full shadow-inner animate-pulse">
+                      <Loader2 className="h-2.5 w-2.5 animate-spin" />
+                      <span>Syncing...</span>
+                    </div>
+                  )}
+
+                  <div className="relative w-40 h-40 flex items-center justify-center flex-shrink-0">
+                    <svg className="w-full h-full transform -rotate-90" viewBox="0 0 100 100">
+                      <circle
+                        cx="50" cy="50" r="40"
+                        className="stroke-brand-darkest fill-none"
+                        strokeWidth="7"
+                      />
+                      <motion.circle
+                        cx="50" cy="50" r="40"
+                        className="stroke-brand-accent fill-none"
+                        strokeWidth="7"
+                        strokeDasharray="251.2"
+                        initial={{ strokeDashoffset: 251.2 }}
+                        animate={{ strokeDashoffset: 251.2 - (251.2 * diskPercentage) / 100 }}
+                        transition={{ duration: 1.5, ease: "easeOut" }}
+                        strokeLinecap="round"
+                      />
+                    </svg>
+                    <div className="absolute flex flex-col items-center justify-center text-center">
+                      <span className="text-2xl font-bold text-gray-200">{Math.round(diskPercentage)}%</span>
+                      <span className="text-[10px] text-gray-400 tracking-wider uppercase mt-0.5">Disk Used</span>
+                    </div>
+                  </div>
+
+                  <div className="space-y-4 flex-1">
+                    <div className="flex items-center gap-3">
+                      <HardDrive className="h-5 w-5 text-brand-accent" />
+                      <div>
+                        <h3 className="font-semibold text-gray-200 text-sm">System Drive (C:)</h3>
+                        <p className="text-xs text-gray-400 mt-0.5">Physical NTFS partition with long path index overrides.</p>
+                      </div>
+                    </div>
+
+                    <div className="grid grid-cols-2 gap-4 border-t border-brand-border pt-4 text-xs font-mono">
+                      <div>
+                        <span className="text-gray-500 block">Total Capacity</span>
+                        <span className="font-semibold text-gray-300 mt-1 block">{formatBytes(diskTotal)}</span>
+                      </div>
+                      <div>
+                        <span className="text-gray-500 block">Remaining Free</span>
+                        <span className="font-semibold text-brand-green mt-1 block">{formatBytes(diskFree)}</span>
+                      </div>
+                      <div>
+                        <span className="text-gray-500 block">Used Space</span>
+                        <span className="font-semibold text-brand-amber mt-1 block">{formatBytes(diskUsed)}</span>
+                      </div>
+                      <div>
+                        <span className="text-gray-500 block">Usage</span>
+                        <span className="font-semibold text-gray-300 mt-1 block">{Math.round(diskPercentage)}%</span>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              )}
 
               {/* Scan Actions */}
               <div className="glass-card p-5 flex flex-col justify-between space-y-4">
@@ -453,6 +539,8 @@ export default function Dashboard() {
                   desc: `${recycleBinInfo.items_count} file${recycleBinInfo.items_count !== 1 ? 's' : ''} queued`,
                   icon: Trash2,
                   color: 'text-brand-accent',
+                  glowColor: 'hover:border-brand-accent/50',
+                  badgeColor: 'text-brand-accent border-brand-accent/30',
                   clickable: true
                 },
                 {
@@ -463,6 +551,8 @@ export default function Dashboard() {
                   desc: `${dashboardStats.temp_items_count} file${dashboardStats.temp_items_count !== 1 ? 's' : ''} cached`,
                   icon: RefreshCw,
                   color: 'text-brand-amber',
+                  glowColor: 'hover:border-brand-amber/50',
+                  badgeColor: 'text-brand-amber border-brand-amber/30',
                   clickable: true
                 },
                 {
@@ -473,6 +563,8 @@ export default function Dashboard() {
                   desc: `${dashboardStats.browser_items_count} cache file${dashboardStats.browser_items_count !== 1 ? 's' : ''}`,
                   icon: Layers,
                   color: 'text-brand-green',
+                  glowColor: 'hover:border-brand-green/50',
+                  badgeColor: 'text-brand-green border-brand-green/30',
                   clickable: true
                 },
                 {
@@ -483,38 +575,82 @@ export default function Dashboard() {
                   desc: '.git, node_modules, VMs active',
                   icon: ShieldAlert,
                   color: 'text-gray-400',
+                  glowColor: 'hover:border-gray-500/30',
+                  badgeColor: 'text-gray-400 border-brand-border',
                   clickable: false
                 }
               ].map((stat, idx) => {
                 const isCleaningThis = modalState.targetId === stat.id && quickCleanStatus === 'cleaning';
+                
+                const isFetchingThis = 
+                  stat.id === 'recycle_bin' ? isRecycleLoading :
+                  (stat.id === 'temp_files' || stat.id === 'browser_caches') ? isStatsLoading :
+                  false;
+
+                const showFullLoader = isInitialLoad && isFetchingThis;
+
                 return (
                   <div 
                     key={idx} 
-                    onClick={() => stat.clickable && handleCardClick(stat.id, stat.label, stat.value, stat.rawBytes)}
-                    className={`glass-card p-4 flex items-center justify-between border border-brand-border transition-all ${
-                      stat.clickable ? 'cursor-pointer hover:bg-brand-card/80 hover:border-brand-accent/50 hover:shadow-lg hover:-translate-y-0.5 group' : ''
+                    onClick={() => stat.clickable && !showFullLoader && !isCleaningThis && handleCardClick(stat.id, stat.label, stat.value, stat.rawBytes)}
+                    className={`glass-card p-4 flex items-center justify-between border border-brand-border transition-all relative overflow-hidden ${
+                      stat.clickable && !showFullLoader && !isCleaningThis
+                        ? `cursor-pointer hover:bg-brand-card/80 hover:shadow-lg hover:-translate-y-0.5 group ${stat.glowColor}` 
+                        : 'opacity-90'
                     }`}
                   >
-                    <div className="space-y-1">
+                    {/* Pulsing card-specific loading background highlight */}
+                    {showFullLoader && (
+                      <div className="absolute inset-0 bg-brand-card/30 animate-pulse pointer-events-none" />
+                    )}
+
+                    <div className="space-y-1 z-10 flex-1">
                       <span className="text-[10px] uppercase text-gray-500 font-semibold tracking-wider flex items-center gap-1.5">
                         {stat.label}
-                        {stat.clickable && <span className="text-[8px] bg-brand-darkest border border-brand-border px-1.5 py-0.5 rounded text-gray-400 font-mono group-hover:text-brand-accent group-hover:border-brand-accent/30 transition-colors">CLEAN</span>}
+                        {stat.clickable && (
+                          showFullLoader ? (
+                            <span className="text-[8px] bg-brand-darkest border border-brand-accent/30 px-1.5 py-0.5 rounded text-brand-accent font-mono animate-pulse">
+                              SCANNING
+                            </span>
+                          ) : (
+                            <span className={`text-[8px] bg-brand-darkest border px-1.5 py-0.5 rounded font-mono transition-colors flex items-center gap-1 ${stat.badgeColor} ${stat.clickable ? 'group-hover:text-brand-accent group-hover:border-brand-accent/30' : ''}`}>
+                              {isFetchingThis && <Loader2 className="h-2 w-2 animate-spin text-brand-accent" />}
+                              CLEAN
+                            </span>
+                          )
+                        )}
                       </span>
-                      <span className="font-bold text-gray-200 block text-lg h-7 flex items-center">
+
+                      <span className="font-bold text-gray-200 block text-lg h-7 flex items-center font-mono">
                         {isCleaningThis ? (
                           <span className="flex items-center gap-2 text-sm text-brand-accent">
                             <Loader2 className="h-4 w-4 animate-spin" />
-                            Processing...
+                            Clearing...
+                          </span>
+                        ) : showFullLoader ? (
+                          <span className="flex items-center gap-2 text-sm text-brand-accent">
+                            <Loader2 className="h-4 w-4 animate-spin text-brand-accent" />
+                            Calculating...
                           </span>
                         ) : (
                           stat.value
                         )}
                       </span>
+
                       <span className="text-[10px] text-gray-400 block h-4">
-                        {isCleaningThis ? 'Waiting for backend...' : stat.desc}
+                        {isCleaningThis ? (
+                          'Wiping files from system...'
+                        ) : showFullLoader ? (
+                          <span className="animate-pulse">Reading directories...</span>
+                        ) : (
+                          stat.desc
+                        )}
                       </span>
                     </div>
-                    <stat.icon className={`h-5 w-5 ${stat.color} flex-shrink-0 ${isCleaningThis ? 'animate-pulse opacity-50' : ''}`} />
+
+                    <stat.icon className={`h-5 w-5 ${stat.color} flex-shrink-0 z-10 ${
+                      isCleaningThis || showFullLoader ? 'animate-pulse opacity-50' : stat.clickable ? 'group-hover:scale-110 transition-transform' : ''
+                    }`} />
                   </div>
                 );
               })}

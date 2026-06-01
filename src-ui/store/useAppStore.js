@@ -76,50 +76,63 @@ export const useAppStore = create((set, get) => {
     serviceWarning: null,
     serviceError: null,
 
+    isDiskLoading: false,
+    isRecycleLoading: false,
+    isStatsLoading: false,
+
     // Real dynamic disk metrics & defaults
     defaultDownloads: '',
     defaultDesktop: '',
     diskSpace: { total: 0, free: 0 },
     fetchDiskSpace: () => {
+      set({ isDiskLoading: true });
       if (window.api) {
         window.api.sendRequest('system:disk');
       } else {
         fetchWithTimeout('http://127.0.0.1:9988/api/disk', {}, 5000)
           .then(res => res.json())
           .then(result => {
-            set({ diskSpace: { total: result.total, free: result.free } });
+            set({ diskSpace: { total: result.total, free: result.free }, isDiskLoading: false });
           })
-          .catch(() => {});
+          .catch(() => {
+            set({ isDiskLoading: false });
+          });
       }
     },
 
     // Recycle bin live data
     recycleBinInfo: { size_bytes: 0, items_count: 0 },
     fetchRecycleBin: () => {
+      set({ isRecycleLoading: true });
       if (window.api) {
         window.api.sendRequest('recycle:query');
       } else {
         fetchWithTimeout('http://127.0.0.1:9988/api/recycle', {}, 5000)
           .then(res => res.json())
           .then(result => {
-            set({ recycleBinInfo: { size_bytes: result.size_bytes, items_count: result.items_count } });
+            set({ recycleBinInfo: { size_bytes: result.size_bytes, items_count: result.items_count }, isRecycleLoading: false });
           })
-          .catch(() => {});
+          .catch(() => {
+            set({ isRecycleLoading: false });
+          });
       }
     },
 
     // Background statistics for dashboard cards
     dashboardStats: { temp_size_bytes: 0, temp_items_count: 0, browser_size_bytes: 0, browser_items_count: 0 },
     fetchDashboardStats: () => {
+      set({ isStatsLoading: true });
       if (window.api) {
         window.api.sendRequest('system:dashboard_stats');
       } else {
         fetchWithTimeout('http://127.0.0.1:9988/api/stats', {}, 5000)
           .then(res => res.json())
           .then(result => {
-            set({ dashboardStats: result });
+            set({ dashboardStats: result, isStatsLoading: false });
           })
-          .catch(() => {});
+          .catch(() => {
+            set({ isStatsLoading: false });
+          });
       }
     },
 
@@ -302,7 +315,10 @@ export const useAppStore = create((set, get) => {
           set({
             scanStatus: 'idle',
             deleteStatus: 'idle',
-            serviceError: error.message
+            serviceError: error.message,
+            isDiskLoading: false,
+            isRecycleLoading: false,
+            isStatsLoading: false
           });
           return;
         }
@@ -340,6 +356,7 @@ export const useAppStore = create((set, get) => {
             const allDone = nextSteps.every(s => s.status === 'completed');
             return {
               diskSpace: { total: result.total, free: result.free },
+              isDiskLoading: false,
               loadingSteps: nextSteps,
               isSystemLoading: allDone ? false : state.isSystemLoading
             };
@@ -358,6 +375,7 @@ export const useAppStore = create((set, get) => {
             const allDone = nextSteps.every(s => s.status === 'completed');
             return {
               dashboardStats: result,
+              isStatsLoading: false,
               loadingSteps: nextSteps,
               isSystemLoading: allDone ? false : state.isSystemLoading
             };
@@ -379,6 +397,7 @@ export const useAppStore = create((set, get) => {
             }
             return {
               recycleBinInfo: { size_bytes: result.size_bytes, items_count: result.items_count },
+              isRecycleLoading: false,
               loadingSteps: nextSteps
             };
           });
@@ -625,7 +644,7 @@ export const useAppStore = create((set, get) => {
 
     // Timed preview simulation for browsers with offline background services
     _runMockSimulation: (initialSteps) => {
-      set({ loadingSteps: initialSteps, isSystemLoading: true });
+      set({ loadingSteps: initialSteps, isSystemLoading: true, isDiskLoading: true, isStatsLoading: true, isRecycleLoading: true });
       
       setTimeout(() => {
         set((state) => ({
@@ -638,6 +657,7 @@ export const useAppStore = create((set, get) => {
         setTimeout(() => {
           set((state) => ({
             diskSpace: { total: 512110000000, free: 297022000000 },
+            isDiskLoading: false,
             loadingSteps: state.loadingSteps.map(s =>
               s.id === 'disk' ? { ...s, status: 'completed' } :
               s.id === 'temp' ? { ...s, status: 'active' } : s
@@ -664,6 +684,7 @@ export const useAppStore = create((set, get) => {
                   browser_size_bytes: 1421034900,
                   browser_items_count: 8201
                 },
+                isStatsLoading: false,
                 loadingSteps: state.loadingSteps.map(s =>
                   s.id === 'browsers' ? { ...s, status: 'completed' } :
                   s.id === 'recycle' ? { ...s, status: 'active' } : s
@@ -673,6 +694,7 @@ export const useAppStore = create((set, get) => {
               setTimeout(() => {
                 set((state) => ({
                   recycleBinInfo: { size_bytes: 120930400, items_count: 42 },
+                  isRecycleLoading: false,
                   exclusions: ['C:\\Users\\User\\Downloads\\.git', 'C:\\Users\\User\\Desktop\\node_modules'],
                   defaultDownloads: 'C:\\Users\\User\\Downloads',
                   defaultDesktop: 'C:\\Users\\User\\Desktop',

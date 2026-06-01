@@ -4,14 +4,14 @@
   "description": "Premium, offline-first, and safety-focused Windows desktop utility.",
   "main": "src/main/main.js",
   "scripts": {
-    "dev": "vite",
+    "dev": "vite --logLevel warn",
     "build:ui": "vite build",
     "build:sidecar": "pyinstaller --clean --noconfirm --onefile --distpath sidecar-dist src-sidecar/main.py",
     "build": "npm run build:ui && npm run build:sidecar",
     "preview": "vite preview",
     "electron:start": "electron .",
     "preelectron:dev": "powershell -Command \"$p = netstat -ano | Select-String ':5173\\s' | ForEach-Object { ($_ -split '\\s+')[-1] } | Select-Object -First 1; if ($p) { taskkill /PID $p /F 2>$null }; Start-Sleep -Milliseconds 300\"",
-    "electron:dev": "concurrently \"npm run dev\" \"wait-on http://localhost:5173 && electron .\"",
+    "electron:dev": "concurrently --prefix none \"npm run dev --silent\" \"wait-on http://localhost:5173 && electron --no-deprecation .\"",
     "dist": "electron-builder"
 
   },

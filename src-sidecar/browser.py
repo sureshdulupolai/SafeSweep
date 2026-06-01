@@ -180,8 +180,7 @@ class BrowserCleaner:
         all_dirs.extend(self.get_brave_cache_dirs())
         all_dirs.extend(self.get_firefox_cache_dirs())
         
-        print(f"[Sidecar Browser] Browser directories located for walking: {all_dirs}", file=sys.stderr)
-        sys.stderr.flush()
+        logger.info(f"Browser directories located for walking: {all_dirs}")
         
         results = []
         for directory in all_dirs:
@@ -196,8 +195,7 @@ class BrowserCleaner:
                             count += 1
                         except Exception:
                             pass
-                print(f"[Sidecar Browser] Scanned: {directory} -> Found {count} files ({size} bytes)", file=sys.stderr)
-                sys.stderr.flush()
+                logger.info(f"Scanned: {directory} -> Found {count} files ({size} bytes)")
                 if count > 0:
                     results.append({
                         "browser": self._detect_browser_name(directory),
@@ -206,8 +204,7 @@ class BrowserCleaner:
                         "size_bytes": size
                     })
             except Exception as e:
-                print(f"[Sidecar Browser Error] Failed scanning directory {directory}: {e}", file=sys.stderr)
-                sys.stderr.flush()
+                logger.error(f"Failed scanning directory {directory}: {e}")
                 
         return results
 

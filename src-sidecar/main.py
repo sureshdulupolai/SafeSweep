@@ -51,13 +51,12 @@ stats_lock = threading.Lock()
 def update_cached_stats_thread():
     global cached_stats, is_updating_stats
     import sys
+    import math
     with stats_lock:
         if is_updating_stats:
             return
         is_updating_stats = True
 
-    print("[Sidecar Stats] Starting background temp & browser size calculations...", file=sys.stderr)
-    sys.stderr.flush()
     try:
         # Calculate Temp & Waste Files with deep robust detection
         temp_dirs = []
@@ -105,12 +104,9 @@ def update_cached_stats_thread():
         # De-duplicate paths preserving order
         seen = set()
         temp_dirs = [x for x in temp_dirs if not (x in seen or seen.add(x))]
-        print(f"[Sidecar Stats] Waste directories resolved for scanning: {temp_dirs}", file=sys.stderr)
-        sys.stderr.flush()
 
         t_size, t_count = 0, 0
         for p in temp_dirs:
-            p_size, p_count = 0, 0
             if p and os.path.exists(p):
                 try:
                     for root, dirs, files in os.walk(p):
@@ -119,31 +115,21 @@ def update_cached_stats_thread():
                             try:
                                 sz = os.path.getsize(fp)
                                 t_size += sz
-                                p_size += sz
                                 t_count += 1
-                                p_count += 1
                             except Exception:
                                 pass
-                except Exception as walk_e:
-                    print(f"[Sidecar Stats Error] Failed to walk directory {p}: {walk_e}", file=sys.stderr)
-                    sys.stderr.flush()
-            print(f"[Sidecar Stats] Walked directory: {p} -> Found {p_count} files ({p_size} bytes)", file=sys.stderr)
-            sys.stderr.flush()
+                except Exception:
+                    pass
         
         # Calculate Browser Cache
         b_size, b_count = 0, 0
-        print("[Sidecar Stats] Launching chromium & firefox cache walker...", file=sys.stderr)
-        sys.stderr.flush()
         try:
             from browser import browser_cleaner
             caches = browser_cleaner.scan_all_browser_caches()
             b_size = sum(c["size_bytes"] for c in caches)
             b_count = sum(c["files_count"] for c in caches)
-            print(f"[Sidecar Stats] Caches scanned details: {caches}", file=sys.stderr)
-            sys.stderr.flush()
-        except Exception as b_e:
-            print(f"[Sidecar Stats Error] Browser cache scan threw an exception: {b_e}", file=sys.stderr)
-            sys.stderr.flush()
+        except Exception:
+            pass
 
         cached_stats["temp_size"] = t_size
         cached_stats["temp_count"] = t_count
@@ -151,11 +137,19 @@ def update_cached_stats_thread():
         cached_stats["browser_count"] = b_count
         cached_stats["last_updated"] = time.time()
         
-        print(f"[Sidecar Stats] SUCCESS: Walk completed! Temp: {t_count} files ({t_size} B), Browsers: {b_count} files ({b_size} B)", file=sys.stderr)
+        def format_size(bytes_count):
+            if not bytes_count or bytes_count == 0:
+                return "0 B"
+            sizes = ["B", "KB", "MB", "GB"]
+            i = int(math.floor(math.log(bytes_count) / math.log(1024)))
+            return f"{round(bytes_count / math.pow(1024, i), 2)} {sizes[i]}"
+
+        # Print only a single clean unified success message
+        print(f"[Sidecar Stats] Analysis completed: Temp Files: {t_count} ({format_size(t_size)}) | Browser Caches: {b_count} ({format_size(b_size)})", file=sys.stderr)
         sys.stderr.flush()
 
     except Exception as fatal_e:
-        print(f"[Sidecar Stats Fatal] Thread crashed with error: {fatal_e}", file=sys.stderr)
+        print(f"[Sidecar Stats Error] Analysis thread crashed: {fatal_e}", file=sys.stderr)
         sys.stderr.flush()
     finally:
         with stats_lock:
@@ -531,6 +525,17 @@ def handle_quick_clean(params):
 
     # Re-trigger background thread to update cached stats after quick clean
     threading.Thread(target=update_cached_stats_thread, daemon=True).start()
+    
+    def format_size(bytes_count):
+        import math
+        if not bytes_count or bytes_count == 0: return "0 B"
+        sizes = ["B", "KB", "MB", "GB"]
+        i = int(math.floor(math.log(bytes_count) / math.log(1024)))
+        return f"{round(bytes_count / math.pow(1024, i), 2)} {sizes[i]}"
+
+    print(f"[Sidecar Clean] target: {target} -> status: completed | deleted: {files_deleted} | skipped: {files_skipped} | freed: {format_size(bytes_freed)}", file=sys.stderr)
+    sys.stderr.flush()
+    
     return {"status": "completed", "bytes_freed": bytes_freed, "files_deleted": files_deleted, "files_skipped": files_skipped}
 
 @dispatcher.register("system.shutdown")

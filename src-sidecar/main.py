@@ -409,36 +409,82 @@ def handle_quick_clean(params):
     import shutil
 
     def safe_delete_folder_contents(folder_path):
-        freed = 0
-        f_count = 0
         import stat
-        if not os.path.exists(folder_path): return 0, 0
-        for root, dirs, files in os.walk(folder_path, topdown=False):
-            for file in files:
-                fp = os.path.join(root, file)
-                try:
-                    size = os.path.getsize(fp)
+        import shutil
+        if not os.path.exists(folder_path): return 0, 0, 0
+        
+        # 1. Fast read-only metadata walk BEFORE deletion
+        freed_before = 0
+        f_count_before = 0
+        try:
+            for root, dirs, files in os.walk(folder_path):
+                for file in files:
+                    fp = os.path.join(root, file)
                     try:
-                        os.chmod(fp, stat.S_IWRITE)
+                        freed_before += os.path.getsize(fp)
+                        f_count_before += 1
                     except Exception:
                         pass
-                    os.remove(fp)
-                    freed += size
-                    f_count += 1
-                except Exception:
-                    pass
-            for dir in dirs:
-                dp = os.path.join(root, dir)
-                try:
-                    os.rmdir(dp)
-                except Exception:
-                    pass
-        return freed, f_count
+        except Exception:
+            pass
+
+        # 2. Lightning-fast bulk directory purge & recreate
+        try:
+            shutil.rmtree(folder_path, ignore_errors=True)
+            os.makedirs(folder_path, exist_ok=True)
+        except Exception:
+            pass
+
+        # 3. Fallback for locked items (e.g., in %TEMP% folder)
+        try:
+            if os.path.exists(folder_path):
+                for name in os.listdir(folder_path):
+                    path = os.path.join(folder_path, name)
+                    try:
+                        if os.path.isdir(path):
+                            shutil.rmtree(path, ignore_errors=True)
+                        else:
+                            os.remove(path)
+                    except Exception:
+                        try:
+                            os.chmod(path, stat.S_IWRITE)
+                            if os.path.isdir(path):
+                                shutil.rmtree(path, ignore_errors=True)
+                            else:
+                                os.remove(path)
+                        except Exception:
+                            pass
+        except Exception:
+            pass
+
+        # 4. Fast read-only metadata walk AFTER deletion
+        freed_after = 0
+        f_count_after = 0
+        try:
+            if os.path.exists(folder_path):
+                for root, dirs, files in os.walk(folder_path):
+                    for file in files:
+                        fp = os.path.join(root, file)
+                        try:
+                            freed_after += os.path.getsize(fp)
+                            f_count_after += 1
+                        except Exception:
+                            pass
+        except Exception:
+            pass
+
+        actual_freed = max(0, freed_before - freed_after)
+        actual_count = max(0, f_count_before - f_count_after)
+
+        return actual_freed, actual_count, f_count_after
+
+    files_skipped = 0
 
     if target == "recycle_bin":
         info = query_recycle_bin()
         bytes_freed = info.get("size_bytes", 0)
         files_deleted = info.get("items_count", 0)
+        files_skipped = 0
         success = empty_recycle_bin(confirm=True)
         if not success:
             bytes_freed = 0
@@ -466,24 +512,26 @@ def handle_quick_clean(params):
         temp_dirs = [x for x in temp_dirs if not (x in seen or seen.add(x))]
         
         for p in temp_dirs:
-            bf, fc = safe_delete_folder_contents(p)
+            bf, fc, fs = safe_delete_folder_contents(p)
             bytes_freed += bf
             files_deleted += fc
+            files_skipped += fs
             
     elif target == "browser_caches":
         try:
             from browser import browser_cleaner
             caches = browser_cleaner.scan_all_browser_caches()
             for c in caches:
-                bf, fc = safe_delete_folder_contents(c["path"])
+                bf, fc, fs = safe_delete_folder_contents(c["path"])
                 bytes_freed += bf
                 files_deleted += fc
+                files_skipped += fs
         except Exception as e:
             logger.error("Failed to clean browser caches.", {"error": str(e)})
 
     # Re-trigger background thread to update cached stats after quick clean
     threading.Thread(target=update_cached_stats_thread, daemon=True).start()
-    return {"status": "completed", "bytes_freed": bytes_freed, "files_deleted": files_deleted}
+    return {"status": "completed", "bytes_freed": bytes_freed, "files_deleted": files_deleted, "files_skipped": files_skipped}
 
 @dispatcher.register("system.shutdown")
 def handle_shutdown(params):

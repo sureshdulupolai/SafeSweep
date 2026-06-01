@@ -65,6 +65,7 @@ export const useAppStore = create((set, get) => {
     quickCleanStatus: 'idle',
     quickCleanBytesFreed: 0,
     quickCleanFilesDeleted: 0,
+    quickCleanFilesSkipped: 0,
 
     // Quarantine recoveries
     quarantineItems: [],
@@ -509,7 +510,8 @@ export const useAppStore = create((set, get) => {
           set({ 
             quickCleanStatus: 'completed', 
             quickCleanBytesFreed: result.bytes_freed,
-            quickCleanFilesDeleted: result.files_deleted || 0
+            quickCleanFilesDeleted: result.files_deleted || 0,
+            quickCleanFilesSkipped: result.files_skipped || 0
           });
           // Fetch new stats immediately to reflect the deletion
           get().fetchDiskSpace();
@@ -590,7 +592,7 @@ export const useAppStore = create((set, get) => {
 
     // Quick Clean
     quickClean: (target) => {
-      set({ quickCleanStatus: 'cleaning', quickCleanBytesFreed: 0, quickCleanFilesDeleted: 0 });
+      set({ quickCleanStatus: 'cleaning', quickCleanBytesFreed: 0, quickCleanFilesDeleted: 0, quickCleanFilesSkipped: 0 });
       if (window.api) {
         window.api.sendRequest('system:quick_clean', { target });
       } else {
@@ -601,14 +603,15 @@ export const useAppStore = create((set, get) => {
             set({ 
               quickCleanStatus: 'completed', 
               quickCleanBytesFreed: result.bytes_freed || 0,
-              quickCleanFilesDeleted: result.files_deleted || 0
+              quickCleanFilesDeleted: result.files_deleted || 0,
+              quickCleanFilesSkipped: result.files_skipped || 0
             });
             get().fetchDiskSpace();
             get().fetchDashboardStats();
             get().fetchRecycleBin();
           })
           .catch(() => {
-            set({ quickCleanStatus: 'completed', quickCleanBytesFreed: 104857600, quickCleanFilesDeleted: 142 });
+            set({ quickCleanStatus: 'completed', quickCleanBytesFreed: 104857600, quickCleanFilesDeleted: 142, quickCleanFilesSkipped: 16 });
             get().fetchDiskSpace();
             get().fetchDashboardStats();
             get().fetchRecycleBin();

@@ -44,6 +44,7 @@ export default function Dashboard() {
   const quickCleanStatus = useAppStore((state) => state.quickCleanStatus);
   const quickCleanBytesFreed = useAppStore((state) => state.quickCleanBytesFreed);
   const quickCleanFilesDeleted = useAppStore((state) => state.quickCleanFilesDeleted);
+  const quickCleanFilesSkipped = useAppStore((state) => state.quickCleanFilesSkipped);
 
   const [modalState, setModalState] = useState({ isOpen: false, step: 'confirm', targetId: null, label: '', value: '', bytesValue: 0 });
   const [confirmText, setConfirmText] = useState('');
@@ -256,6 +257,12 @@ export default function Dashboard() {
                         <span className="text-gray-400">Files Removed:</span>
                         <span className="font-mono text-brand-accent">{quickCleanFilesDeleted} files</span>
                       </div>
+                      {quickCleanFilesSkipped > 0 && (
+                        <div className="flex justify-between items-center text-xs">
+                          <span className="text-gray-400">Files Skipped:</span>
+                          <span className="font-mono text-brand-amber">{quickCleanFilesSkipped} files</span>
+                        </div>
+                      )}
                       <div className="flex justify-between items-center text-xs border-t border-brand-border/50 pt-2">
                         <span className="font-semibold text-gray-300">Total Freed Space:</span>
                         <span className="font-mono font-bold text-brand-green text-sm">+{formatBytes(quickCleanBytesFreed)}</span>
@@ -267,6 +274,20 @@ export default function Dashboard() {
                         </span>
                       </div>
                     </div>
+
+                    {quickCleanFilesSkipped > 0 && (
+                      <div className="bg-yellow-500/5 border border-yellow-500/10 p-3.5 rounded-lg flex items-start gap-2.5">
+                        <div className="bg-yellow-500/10 p-1.5 rounded text-yellow-500 flex-shrink-0 mt-0.5">
+                          <ShieldCheck className="h-3.5 w-3.5 text-yellow-500" />
+                        </div>
+                        <div className="flex-1">
+                          <strong className="text-gray-200 text-[11px] block mb-0.5">Active Files Safely Preserved</strong>
+                          <p className="text-[10px] text-gray-400 leading-relaxed">
+                            Some system and application cache files are currently locked or in use by active Windows system processes or background services. These files have been safely skipped to guarantee system stability.
+                          </p>
+                        </div>
+                      </div>
+                    )}
                   </div>
 
                   <div className="p-4 bg-brand-card border-t border-brand-border flex justify-end">

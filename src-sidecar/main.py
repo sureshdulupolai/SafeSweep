@@ -4,6 +4,7 @@ import json
 import threading
 import time
 from http.server import BaseHTTPRequestHandler, HTTPServer
+from socketserver import ThreadingMixIn
 from rpc import RPCDispatcher
 from scanner import ScanningTask
 from delete_engine import DeletionSession
@@ -547,6 +548,9 @@ def handle_shutdown(params):
 
 # --- LIGHTWEIGHT LOCAL HTTP API BACKEND FOR BROWSER RUNTIMES ---
 
+class ThreadingHTTPServer(ThreadingMixIn, HTTPServer):
+    daemon_threads = True
+
 class LocalCleanerHTTPServer(BaseHTTPRequestHandler):
     def log_message(self, format, *args):
         # Prevent polluting standard output streams which Electron listens to!
@@ -556,6 +560,14 @@ class LocalCleanerHTTPServer(BaseHTTPRequestHandler):
         self.send_header("Access-Control-Allow-Origin", "*")
         self.send_header("Access-Control-Allow-Methods", "GET, POST, OPTIONS")
         self.send_header("Access-Control-Allow-Headers", "Content-Type")
+
+    def write_response(self, data):
+        try:
+            self.wfile.write(json.dumps(data).encode())
+        except (ConnectionAbortedError, ConnectionResetError, BrokenPipeError):
+            pass
+        except Exception:
+            pass
 
     def do_OPTIONS(self):
         self.send_response(200)
@@ -573,23 +585,40 @@ class LocalCleanerHTTPServer(BaseHTTPRequestHandler):
             try:
                 if endpoint == "startup":
                     res = handle_startup({})
-                    self.wfile.write(json.dumps(res).encode())
+                    self.write_response(res)
                 elif endpoint == "disk":
                     res = handle_disk_space({})
-                    self.wfile.write(json.dumps(res).encode())
+                    self.write_response(res)
                 elif endpoint == "stats":
                     res = handle_dashboard_stats({})
-                    self.wfile.write(json.dumps(res).encode())
+                    self.write_response(res)
                 elif endpoint == "recycle":
                     res = handle_recycle_query({})
-                    self.wfile.write(json.dumps(res).encode())
+                    self.write_response(res)
                 elif endpoint.startswith("quick_clean"):
                     # Parse target from query params manually: /api/quick_clean?target=xyz
                     target = "temp_files"
                     if "target=" in endpoint:
                         target = endpoint.split("target=")[1].split("&")[0]
                     res = handle_quick_clean({"target": target})
-                    self.wfile.write(json.dumps(res).encode())
+                    self.write_response(res)
+                elif endpoint == "browse":
+                    try:
+                        import tkinter as tk
+                        from tkinter import filedialog
+                        
+                        def pick_folder():
+                            root = tk.Tk()
+                            root.withdraw()
+                            root.attributes('-topmost', True)
+                            path = filedialog.askdirectory(parent=root, title="Select Scan Directory")
+                            root.destroy()
+                            return path
+                        
+                        selected_path = pick_folder()
+                        self.write_response({"path": selected_path})
+                    except Exception as err:
+                        self.write_response({"error": str(err)})
                 elif endpoint.startswith("open"):
                     import urllib.parse
                     open_path = ""
@@ -598,7 +627,7 @@ class LocalCleanerHTTPServer(BaseHTTPRequestHandler):
                         open_path = urllib.parse.unquote(encoded_path)
                     
                     if not open_path:
-                        self.wfile.write(json.dumps({"error": "Missing path parameter"}).encode())
+                        self.write_response({"error": "Missing path parameter"})
                     else:
                         try:
                             # Normalize path separators for Windows
@@ -611,9 +640,9 @@ class LocalCleanerHTTPServer(BaseHTTPRequestHandler):
                             else:
                                 import subprocess
                                 subprocess.call(["xdg-open", open_path])
-                            self.wfile.write(json.dumps({"success": True}).encode())
+                            self.write_response({"success": True})
                         except Exception as open_err:
-                            self.wfile.write(json.dumps({"error": str(open_err)}).encode())
+                            self.write_response({"error": str(open_err)})
                 elif endpoint.startswith("scan"):
                     import urllib.parse
                     scan_path = ""
@@ -622,7 +651,7 @@ class LocalCleanerHTTPServer(BaseHTTPRequestHandler):
                         scan_path = urllib.parse.unquote(encoded_path)
                     
                     if not scan_path:
-                        self.wfile.write(json.dumps({"error": "Missing path parameter"}).encode())
+                        self.write_response({"error": "Missing path parameter"})
                     else:
                         files_list = []
                         def accumulate_files(method, params):
@@ -632,11 +661,11 @@ class LocalCleanerHTTPServer(BaseHTTPRequestHandler):
                         task = ScanningTask(scan_path, "balanced", rpc_notify_callback=accumulate_files)
                         res = task.execute()
                         res["files"] = files_list
-                        self.wfile.write(json.dumps(res).encode())
+                        self.write_response(res)
                 else:
-                    self.wfile.write(json.dumps({"error": "endpoint not found"}).encode())
+                    self.write_response({"error": "endpoint not found"})
             except Exception as e:
-                self.wfile.write(json.dumps({"error": str(e)}).encode())
+                self.write_response({"error": str(e)})
         else:
             self.send_response(404)
             self.end_headers()
@@ -661,18 +690,18 @@ class LocalCleanerHTTPServer(BaseHTTPRequestHandler):
                     
                     session = DeletionSession(targets, permanent, scan_path=scan_path)
                     res = session.execute()
-                    self.wfile.write(json.dumps(res).encode())
+                    self.write_response(res)
                 else:
-                    self.wfile.write(json.dumps({"error": "endpoint not found"}).encode())
+                    self.write_response({"error": "endpoint not found"})
             except Exception as e:
-                self.wfile.write(json.dumps({"error": str(e)}).encode())
+                self.write_response({"error": str(e)})
         else:
             self.send_response(404)
             self.end_headers()
 
 def run_http_server():
     try:
-        server = HTTPServer(("127.0.0.1", 9988), LocalCleanerHTTPServer)
+        server = ThreadingHTTPServer(("127.0.0.1", 9988), LocalCleanerHTTPServer)
         server.serve_forever()
     except Exception as e:
         logger.error("Failed to start background local HTTP server.", {"error": str(e)})

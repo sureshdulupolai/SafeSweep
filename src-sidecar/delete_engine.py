@@ -58,6 +58,9 @@ def send_to_recycle_bin(path_str):
         
     return True
 
+import threading
+from concurrent.futures import ThreadPoolExecutor
+
 class DeletionSession:
     def __init__(self, targets_list, permanent=False, rpc_notify_callback=None, scan_path=None):
         self.targets = [normalize_windows_path(t) for t in targets_list]
@@ -68,7 +71,8 @@ class DeletionSession:
         self.journal = []
         self.deleted_files = []
         self.failed_files = []
-        self.chunk_size = 2000
+        self.chunk_size = 200
+        self.lock = threading.Lock()
 
     def cancel(self):
         self.cancelled = True
@@ -200,34 +204,49 @@ class DeletionSession:
         logger.info(f"Empty-folder cleanup finished. Removed {cleaned_count} empty directories.")
 
     def _process_deletion_chunk(self, chunk):
-        """Processes a single batch block of target paths."""
-        for path in chunk:
+        """Processes a single batch block of target paths concurrently using ThreadPoolExecutor."""
+        from concurrent.futures import as_completed
+
+        def delete_single_path(path):
             if self.cancelled:
-                break
+                return
 
             try:
                 # 1. Re-validate via Safety Middleware before executing delete
                 middleware.verify_delete_request(path)
 
                 # 2. Add path to atomic volatile session journal
-                self.journal.append(path)
+                with self.lock:
+                    self.journal.append(path)
 
                 if self.permanent:
                     self._shred_file(path)
                 else:
                     send_to_recycle_bin(path)
 
-                self.deleted_files.append(path)
-                self.journal.remove(path)
+                with self.lock:
+                    self.deleted_files.append(path)
+                    if path in self.journal:
+                        self.journal.remove(path)
 
             except Exception as e:
                 # Log errors and skip files gracefully
                 clean_err = wrap_sys_error(e, path, "delete")
-                self.failed_files.append({
-                    "path": path,
-                    "reason": clean_err.message
-                })
+                with self.lock:
+                    self.failed_files.append({
+                        "path": path,
+                        "reason": clean_err.message
+                    })
+                    if path in self.journal:
+                        self.journal.remove(path)
                 logger.error("Failed to delete target path.", {"path": path, "error": clean_err.message})
+
+        max_workers = 32
+        with ThreadPoolExecutor(max_workers=max_workers) as executor:
+            futures = [executor.submit(delete_single_path, path) for path in chunk]
+            for future in as_completed(futures):
+                if self.cancelled:
+                    break
 
     def _shred_file(self, file_path):
         """
@@ -256,7 +275,7 @@ class DeletionSession:
                 if size > 0:
                     # Write zeros across file allocation boundaries
                     f.seek(0)
-                    f.write(b'\x00' * min(size, 4096 * 100))  # Chunk write for performance
+                    f.write(b'\x00' * min(size, 4096 * 16))  # 64KB chunk write for performance
         except Exception as e:
             # If write access fails (locked or write-protected), let OS unlink try
             pass

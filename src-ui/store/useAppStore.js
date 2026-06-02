@@ -40,12 +40,15 @@ export const useAppStore = create((set, get) => {
     },
 
     // Scan progress statuses
+    scanPath: '',
     scanStatus: 'idle', // idle, scanning, completed, cancelled
     scannedCount: 0,
     scannedBytes: 0,
     scannedFiles: [],
     safeModeEnforced: false,
     safetyWarning: null,
+    limitExceeded: false,
+    skippedPaths: [],
 
     // Duplicate files
     duplicatesStatus: 'idle',
@@ -295,17 +298,23 @@ export const useAppStore = create((set, get) => {
         const { method, params } = packet;
 
         if (method === 'scanner.progress') {
-          set((state) => ({
-            scannedCount: params.scanned_count,
-            scannedBytes: params.total_size_bytes,
-            scannedFiles: [...state.scannedFiles, ...params.files]
-          }));
+          const skipped = get().skippedPaths || [];
+          const freshFiles = (params.files || []).filter(f => !skipped.includes(f.path));
+          set((state) => {
+            const nextFiles = [...state.scannedFiles, ...freshFiles];
+            return {
+              scannedCount: nextFiles.length,
+              scannedBytes: nextFiles.reduce((acc, curr) => acc + curr.size, 0),
+              scannedFiles: nextFiles
+            };
+          });
         } else if (method === 'scanner.completed') {
           // Scanner completed as notification (from DuplicateFinder)
           set({
             scanStatus: 'completed',
             safeModeEnforced: params.safe_mode_enforced || false,
-            safetyWarning: params.warning || null
+            safetyWarning: params.warning || null,
+            limitExceeded: params.limit_exceeded || false
           });
         } else if (method === 'delete.progress' || method === 'deletion.progress') {
           set({
@@ -320,6 +329,7 @@ export const useAppStore = create((set, get) => {
             duplicatesStatus: 'completed'
           });
         } else if (method === 'delete.completed') {
+          const wasCapped = get().limitExceeded;
           set((state) => {
             const deletedPaths = params.deleted || [];
             const remainingFiles = state.scannedFiles.filter(f => !deletedPaths.includes(f.path));
@@ -330,6 +340,15 @@ export const useAppStore = create((set, get) => {
             };
           });
           get().fetchQuarantine();
+          
+          if (wasCapped) {
+            const currentScanPath = get().scanPath;
+            if (currentScanPath) {
+              setTimeout(() => {
+                get().startScan(currentScanPath);
+              }, 600);
+            }
+          }
         }
       });
 
@@ -459,7 +478,8 @@ export const useAppStore = create((set, get) => {
           set({
             scanStatus: 'completed',
             safeModeEnforced: result.safe_mode_enforced || false,
-            safetyWarning: result.warning || null
+            safetyWarning: result.warning || null,
+            limitExceeded: result.limit_exceeded || false
           });
           return;
         }
@@ -478,6 +498,7 @@ export const useAppStore = create((set, get) => {
 
         // delete completed (returned as response)
         if (result.status === 'completed' && result.deleted !== undefined) {
+          const wasCapped = get().limitExceeded;
           set((state) => {
             const deletedPaths = result.deleted || [];
             const remainingFiles = state.scannedFiles.filter(f => !deletedPaths.includes(f.path));
@@ -488,6 +509,15 @@ export const useAppStore = create((set, get) => {
             };
           });
           get().fetchQuarantine();
+          
+          if (wasCapped) {
+            const currentScanPath = get().scanPath;
+            if (currentScanPath) {
+              setTimeout(() => {
+                get().startScan(currentScanPath);
+              }, 600);
+            }
+          }
           return;
         }
 
@@ -571,13 +601,16 @@ export const useAppStore = create((set, get) => {
       window.api.sendRequest('system:startup');
     },
 
-    startScan: (targetPath) => {
-      set({ 
+    startScan: (targetPath, isReplenishing = false) => {
+      set((state) => ({ 
+        scanPath: targetPath,
         scanStatus: 'scanning',
         scannedCount: 0,
         scannedBytes: 0,
-        scannedFiles: []
-      });
+        scannedFiles: [],
+        limitExceeded: false,
+        skippedPaths: isReplenishing ? state.skippedPaths : []
+      }));
       if (window.api) {
         window.api.sendRequest('scanner:start', { path: targetPath, scanMode: get().scanMode });
       } else {
@@ -589,13 +622,16 @@ export const useAppStore = create((set, get) => {
             if (result.error) {
               throw new Error(result.error);
             }
+            const skipped = get().skippedPaths || [];
+            const freshFiles = (result.files || []).filter(f => !skipped.includes(f.path));
             set({
               scanStatus: 'completed',
-              scannedCount: result.files_found_count || 0,
-              scannedBytes: result.total_size_bytes || 0,
+              scannedCount: freshFiles.length,
+              scannedBytes: freshFiles.reduce((acc, curr) => acc + curr.size, 0),
               safeModeEnforced: result.safe_mode_enforced || false,
               safetyWarning: result.warning || null,
-              scannedFiles: result.files || []
+              limitExceeded: result.limit_exceeded || false,
+              scannedFiles: freshFiles
             });
           })
           .catch(err => {
@@ -607,33 +643,57 @@ export const useAppStore = create((set, get) => {
 
     _runMockScan: (targetPath) => {
       let currentCount = 0;
-      const mockFiles = [
-        { path: `${targetPath}\\Gemini_Generated_Image_nasjn2nasjn2nasj.png`, size: 5101568, risk: 'SAFE' },
-        { path: `${targetPath}\\voice_preview_suresh_polai.mp3`, size: 1072128, risk: 'SAFE' },
-        { path: `${targetPath}\\Gemini_Generated_Image_n1dr9jn1dr9jn1dr.png`, size: 4731904, risk: 'SAFE' },
-        { path: `${targetPath}\\Gemini_Generated_Image_hmjx83hmjx83hmjx.png`, size: 5992448, risk: 'SAFE' },
-        { path: `${targetPath}\\Gemini_Generated_Image_cinarhcinarhcina.png`, size: 6657024, risk: 'SAFE' },
-        { path: `${targetPath}\\Antigravity IDE.exe`, size: 228766720, risk: 'LOW' },
-        { path: `${targetPath}\\MAH_MCA_CET_Important_MCQs_2021_2025.txt`, size: 6144, risk: 'SAFE' },
-        { path: `${targetPath}\\Gemini_Generated_Image_yph1fayph1fayph1.png`, size: 4382720, risk: 'SAFE' },
-        { path: `${targetPath}\\autoCV.pdf`, size: 107520, risk: 'SAFE' },
-        { path: `${targetPath}\\Screenshot_2026-05-19_175155-removebg-pre.png`, size: 138240, risk: 'SAFE' },
-        { path: `${targetPath}\\Resume-Suresh-Polai-HRM-Counsel.pdf`, size: 99328, risk: 'SAFE' },
-        { path: `${targetPath}\\google5c65749617527eda.html`, size: 1024, risk: 'SAFE' },
-        { path: `${targetPath}\\Suresh Polai - Full Stack Developer.mp4`, size: 22126592, risk: 'LOW' },
-        { path: `${targetPath}\\projectandcasestudiespython_269_1779110254.jpg`, size: 285696, risk: 'SAFE' },
-        { path: `${targetPath}\\testinginpython_222_1779110208_1779110212.jpg`, size: 275456, risk: 'SAFE' },
-        { path: `${targetPath}\\djangoframework_217_1779110063_1779110063.jpg`, size: 277504, risk: 'SAFE' },
-        { path: `${targetPath}\\advancedwebdesign_224_1779110054_1779110054.jpg`, size: 280576, risk: 'SAFE' },
-        { path: `${targetPath}\\cce_certificate18403__1779110019.jpg`, size: 412672, risk: 'SAFE' },
-        { path: `${targetPath}\\pritam_accessKeys.csv`, size: 1024, risk: 'SAFE' },
-        { path: `${targetPath}\\AWSCLIV2.msi`, size: 47841280, risk: 'SAFE' },
-        { path: `${targetPath}\\pritam_credentials.csv`, size: 1024, risk: 'SAFE' },
-        { path: `${targetPath}\\18) WEBLIST OF B.SC. (C.S.) (SEM-V) (CBCGS) (R).pdf`, size: 1069056, risk: 'SAFE' },
-        { path: `${targetPath}\\case study.pdf`, size: 2173952, risk: 'SAFE' },
-        { path: `${targetPath}\\SystemShield\\hosts`, size: 820, risk: 'CRITICAL' },
-        { path: `${targetPath}\\SystemShield\\kernel32.dll`, size: 7130368, risk: 'CRITICAL' }
-      ];
+      const skipped = get().skippedPaths || [];
+
+      // Dynamically generate a high-fidelity list of mock files based on targetPath
+      const generateDynamicMockFiles = (path) => {
+        const fileTemplates = [
+          { name: "Backup_Archive", ext: "zip", size: 45000000, risk: "SAFE" },
+          { name: "Report_Analysis", ext: "pdf", size: 1200000, risk: "SAFE" },
+          { name: "Image_Capture", ext: "png", size: 3400000, risk: "SAFE" },
+          { name: "Voice_Recording", ext: "mp3", size: 5200000, risk: "SAFE" },
+          { name: "Setup_Installer", ext: "msi", size: 85000000, risk: "LOW" },
+          { name: "Data_Spreadsheet", ext: "csv", size: 15000, risk: "SAFE" },
+          { name: "Meeting_Minutes", ext: "txt", size: 4500, risk: "SAFE" },
+          { name: "System_Log", ext: "log", size: 890000, risk: "SAFE" },
+          { name: "Video_Presentation", ext: "mp4", size: 120000000, risk: "LOW" },
+          { name: "App_Config", ext: "json", size: 2500, risk: "SAFE" },
+          { name: "Draft_Document", ext: "docx", size: 45000, risk: "SAFE" },
+          { name: "Thumbnail_Preview", ext: "jpg", size: 180000, risk: "SAFE" },
+          { name: "Database_Local", ext: "db", size: 12000000, risk: "SAFE" },
+          { name: "Temporary_Cache", ext: "tmp", size: 32000000, risk: "LOW" },
+          { name: "Dependency_Library", ext: "dll", size: 4500000, risk: "CRITICAL" },
+          { name: "Host_Shield", ext: "sys", size: 12000, risk: "CRITICAL" }
+        ];
+
+        const generated = [];
+        const numFiles = Math.floor(Math.random() * 15) + 25;
+        
+        for (let i = 0; i < numFiles; i++) {
+          const template = fileTemplates[i % fileTemplates.length];
+          const randomSuffix = Math.random().toString(36).substring(2, 8).toUpperCase();
+          const fileName = `${template.name}_${randomSuffix}.${template.ext}`;
+          
+          let filePath = path;
+          if (i % 4 === 1) {
+            filePath += "\\SystemCaches";
+          } else if (i % 4 === 2) {
+            filePath += "\\AppData_Local";
+          } else if (i % 4 === 3) {
+            filePath += "\\TempProject";
+          }
+
+          generated.push({
+            path: `${filePath}\\${fileName}`,
+            name: fileName,
+            size: Math.floor(template.size * (0.5 + Math.random())),
+            risk: template.risk
+          });
+        }
+        return generated;
+      };
+
+      const mockFiles = generateDynamicMockFiles(targetPath).filter(f => !skipped.includes(f.path));
       const totalSimulated = mockFiles.length;
       const interval = setInterval(() => {
         currentCount += Math.floor(Math.random() * 5) + 3;
@@ -649,8 +709,8 @@ export const useAppStore = create((set, get) => {
           });
         } else {
           set({
-            scannedCount: currentCount,
-            scannedBytes: Math.floor((currentCount / totalSimulated) * 314572800)
+            scannedCount: Math.min(currentCount, totalSimulated),
+            scannedBytes: Math.floor((Math.min(currentCount, totalSimulated) / (totalSimulated || 1)) * 314572800)
           });
         }
       }, 100);
@@ -701,9 +761,35 @@ export const useAppStore = create((set, get) => {
 
     clearSimulation: () => set({ activeSimulation: null }),
 
+    skipSelectedPaths: (paths, scanPath) => {
+      const wasCapped = get().limitExceeded;
+      set((state) => {
+        const nextFiles = state.scannedFiles.filter(f => !paths.includes(f.path));
+        return {
+          skippedPaths: [...state.skippedPaths, ...paths],
+          scannedFiles: nextFiles,
+          scannedCount: nextFiles.length,
+          scannedBytes: nextFiles.reduce((acc, curr) => acc + curr.size, 0)
+        };
+      });
+      if (wasCapped && scanPath) {
+        get().startScan(scanPath, true);
+      }
+    },
+
     // Deletion executions
     startDeletion: (targets, permanent = false, scanPath = '') => {
-      set({ deleteStatus: 'deleting' });
+      // Capture unselected paths in scannedFiles as skipped paths
+      const currentScanned = get().scannedFiles;
+      const skipped = currentScanned
+        .filter(f => !targets.includes(f.path))
+        .map(f => f.path);
+
+      set((state) => ({ 
+        deleteStatus: 'deleting',
+        skippedPaths: [...state.skippedPaths, ...skipped]
+      }));
+
       if (window.api) {
         window.api.sendRequest('delete:start', { targets, permanent, scanPath });
       } else {
@@ -721,6 +807,7 @@ export const useAppStore = create((set, get) => {
             if (result.error) {
               throw new Error(result.error);
             }
+            const wasCapped = get().limitExceeded;
             set((state) => {
               const deletedPaths = result.deleted || [];
               const remainingFiles = state.scannedFiles.filter(f => !deletedPaths.includes(f.path));
@@ -733,6 +820,12 @@ export const useAppStore = create((set, get) => {
               };
             });
             get().fetchQuarantine();
+            
+            if (wasCapped && scanPath) {
+              setTimeout(() => {
+                get().startScan(scanPath, true);
+              }, 600);
+            }
           })
           .catch(err => {
             console.error("[SafeSweep API] Real deletion failed, falling back to mock simulation...", err);
@@ -744,8 +837,10 @@ export const useAppStore = create((set, get) => {
     _runMockDeletion: (targets) => {
       let deleted = 0;
       const total = targets.length;
+      const step = Math.max(5, Math.floor(total / 20) + 1);
+      const wasCapped = get().limitExceeded;
       const interval = setInterval(() => {
-        deleted += Math.floor(Math.random() * 2) + 1;
+        deleted += Math.floor(Math.random() * step) + Math.floor(step / 2) + 1;
         if (deleted >= total) {
           deleted = total;
           clearInterval(interval);
@@ -765,16 +860,23 @@ export const useAppStore = create((set, get) => {
             const fileObj = currentFiles.find(f => f.path === path);
             return acc + (fileObj ? fileObj.size : 0);
           }, 0);
+          
           set((state) => ({
             dashboardStats: {
               ...state.dashboardStats,
               temp_size_bytes: Math.max(0, state.dashboardStats.temp_size_bytes - totalFreed)
             }
           }));
+          
+          if (wasCapped) {
+            setTimeout(() => {
+              get().startScan(get().scanPath || 'C:\\Users\\user\\Desktop', true);
+            }, 600);
+          }
         } else {
           set({ deletedCount: deleted });
         }
-      }, 150);
+      }, 40);
       get()._deleteInterval = interval;
     },
 

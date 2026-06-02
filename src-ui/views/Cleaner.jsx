@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Play, Square, Trash2, FolderSearch, ShieldCheck, ShieldAlert, Sparkles, Loader2, Download, Monitor, HardDrive, FolderOpen, Copy, Check, ExternalLink } from 'lucide-react';
+import { Play, Square, Trash2, FolderSearch, ShieldCheck, ShieldAlert, Sparkles, Loader2, Download, Monitor, HardDrive, FolderOpen, Copy, Check, ExternalLink, Image, Video, Music, FileText, File, EyeOff } from 'lucide-react';
 import { useAppStore } from '../store/useAppStore';
 import FileTree from '../components/FileTree';
 import SafeModeWatermark from '../components/SafeModeWatermark';
@@ -20,24 +20,41 @@ export default function Cleaner() {
   const activeSimulation = useAppStore((state) => state.activeSimulation);
   const runDeleteSimulation = useAppStore((state) => state.runDeleteSimulation);
   const clearSimulation = useAppStore((state) => state.clearSimulation);
+  const skipSelectedPaths = useAppStore((state) => state.skipSelectedPaths);
   const defaultDownloads = useAppStore((state) => state.defaultDownloads);
   const defaultDesktop = useAppStore((state) => state.defaultDesktop);
   const deletedCount = useAppStore((state) => state.deletedCount);
   const failedCount = useAppStore((state) => state.failedCount);
+  const limitExceeded = useAppStore((state) => state.limitExceeded);
 
-  const [scanPath, setScanPath] = useState('');
+  const [scanPath, setScanPath] = useState(() => {
+    return localStorage.getItem('safesweep_last_path') || '';
+  });
   const [selectedPaths, setSelectedPaths] = useState([]);
   const [isDeleteModalOpen, setIsDeleteModalOpen] = useState(false);
   const [permanentDelete, setPermanentDelete] = useState(false);
   const [isTrustPanelOpen, setIsTrustPanelOpen] = useState(false);
   const [copied, setCopied] = useState(false);
+  const [fileTypeFilter, setFileTypeFilter] = useState('all');
 
-  // Sync scan path to dynamic defaultDownloads when it finishes loading
+  // Sync scan path to dynamic defaultDownloads when it finishes loading if no saved path exists
   useEffect(() => {
+    const savedPath = localStorage.getItem('safesweep_last_path');
+    if (savedPath) {
+      setScanPath(savedPath);
+      return;
+    }
     if (defaultDownloads && !scanPath) {
       setScanPath(defaultDownloads);
     }
   }, [defaultDownloads]);
+
+  // Persist the user's custom scan path to localStorage whenever it changes
+  useEffect(() => {
+    if (scanPath) {
+      localStorage.setItem('safesweep_last_path', scanPath);
+    }
+  }, [scanPath]);
 
   // Sync selected paths with newly scanned files
   useEffect(() => {
@@ -93,15 +110,32 @@ export default function Cleaner() {
       } catch (err) {
         console.error('Failed to open native folder dialog:', err);
       }
-    } else if (window.showDirectoryPicker) {
-      try {
-        const handle = await window.showDirectoryPicker();
-        setScanPath(`C:\\Users\\user\\${handle.name}`);
-      } catch (err) {
-        console.error('Directory picker cancelled or failed:', err);
-      }
     } else {
-      // Fallback: trigger a hidden file input with webkitdirectory
+      // In browser fallback, first attempt calling the local sidecar's native Windows browse API
+      // to bypass browser sandbox limitations on high-level system directories (Desktop, Downloads, C:\)
+      try {
+        const res = await fetch('http://127.0.0.1:9988/api/browse');
+        const data = await res.json();
+        if (data && data.path) {
+          setScanPath(data.path);
+          return; // Directory loaded successfully!
+        }
+      } catch (err) {
+        console.warn('Local Python browse API offline, falling back to standard browser folder pickers...', err);
+      }
+
+      // Browser directory picker fallback (may fail for system protected directories due to sandboxing)
+      if (window.showDirectoryPicker) {
+        try {
+          const handle = await window.showDirectoryPicker();
+          setScanPath(`C:\\Users\\user\\${handle.name}`);
+          return;
+        } catch (err) {
+          console.error('Directory picker cancelled or failed:', err);
+        }
+      }
+
+      // Final fallback: trigger a hidden file input with webkitdirectory
       const input = document.createElement('input');
       input.type = 'file';
       input.webkitdirectory = true;
@@ -132,6 +166,12 @@ export default function Cleaner() {
     });
   };
 
+  const handleSkipSelection = () => {
+    if (selectedPaths.length === 0) return;
+    skipSelectedPaths(selectedPaths, scanPath);
+    setSelectedPaths([]);
+  };
+
   const handleTriggerReview = (permanent) => {
     setPermanentDelete(permanent);
     runDeleteSimulation(selectedPaths);
@@ -145,6 +185,29 @@ export default function Cleaner() {
     const i = Math.floor(Math.log(bytes) / Math.log(k));
     return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i];
   };
+
+  const getFileTypeCategory = (fileName) => {
+    if (!fileName) return 'other';
+    const ext = fileName.slice(((fileName.lastIndexOf(".") - 1) >>> 0) + 2).toLowerCase();
+    if (['png', 'jpg', 'jpeg', 'gif', 'webp', 'bmp', 'svg'].includes(ext)) return 'images';
+    if (['mp4', 'mkv', 'avi', 'mov', 'wmv', 'flv'].includes(ext)) return 'videos';
+    if (['mp3', 'wav', 'aac', 'flac', 'ogg', 'm4a'].includes(ext)) return 'audio';
+    if (ext === 'pdf') return 'pdf';
+    if (['txt', 'csv', 'log', 'md', 'json', 'xml'].includes(ext)) return 'text';
+    return 'other';
+  };
+
+  const filteredFiles = scannedFiles.filter(file => {
+    if (fileTypeFilter === 'all') return true;
+    return getFileTypeCategory(file.name) === fileTypeFilter;
+  });
+
+  const categoryCounts = scannedFiles.reduce((acc, file) => {
+    const cat = getFileTypeCategory(file.name);
+    acc[cat] = (acc[cat] || 0) + 1;
+    acc.all++;
+    return acc;
+  }, { all: 0, images: 0, videos: 0, audio: 0, pdf: 0, text: 0, other: 0 });
 
   // Drag-and-Drop handling for paths
   const handleDragOver = (e) => {
@@ -300,6 +363,26 @@ export default function Cleaner() {
       {/* Warning/Watermark Section */}
       <SafeModeWatermark visible={safeModeEnforced} />
 
+      {/* Large Directory Capacity Capping Alert */}
+      {limitExceeded && (
+        <motion.div 
+          initial={{ opacity: 0, y: -10 }}
+          animate={{ opacity: 1, y: 0 }}
+          className="bg-brand-amber/10 border border-brand-amber/20 p-4 rounded-xl flex items-start gap-3 text-brand-amber text-xs select-none"
+        >
+          <ShieldAlert className="h-5 w-5 flex-shrink-0 mt-0.5" />
+          <div className="space-y-1">
+            <span className="font-bold block">Large Directory Capacity Limit Reached!</span>
+            <p className="text-gray-300 leading-relaxed font-medium">
+              SafeSweep capped this view to the first <strong>5,000 files</strong> to maintain blazingly fast scanning and smooth interactive performance on massive directory branches.
+            </p>
+            <p className="text-gray-400 font-semibold mt-1.5">
+              💡 Tip: Safely clean or shred some of these selected files. SafeSweep will automatically slide and refill the list with new files!
+            </p>
+          </div>
+        </motion.div>
+      )}
+
       {/* Success banner after deletion */}
       {deleteStatus === 'completed' && (
         <motion.div 
@@ -328,12 +411,12 @@ export default function Cleaner() {
             <span className="text-brand-accent font-bold">{scannedCount.toLocaleString()} files indexed</span>
           </div>
           {/* Progress bar */}
-          <div className="w-full bg-brand-darkest rounded-full h-2 overflow-hidden">
+          <div className="w-full bg-brand-darkest rounded-full h-2 overflow-hidden relative">
             <motion.div 
-              initial={{ width: '0%' }}
-              animate={{ width: '100%' }}
-              transition={{ repeat: Infinity, duration: 2, ease: "linear" }}
-              className="bg-brand-accent h-full"
+              initial={{ left: '-50%', width: '40%' }}
+              animate={{ left: '110%' }}
+              transition={{ repeat: Infinity, duration: 1.5, ease: "easeInOut" }}
+              className="bg-gradient-to-r from-transparent via-brand-accent to-transparent h-full absolute"
             />
           </div>
         </div>
@@ -380,8 +463,91 @@ export default function Cleaner() {
             </button>
           </div>
 
+          {/* File Type Filter Chips */}
+          <div className="flex flex-wrap items-center gap-2 p-2 bg-brand-card/30 border border-brand-border/40 rounded-xl select-none">
+            <span className="text-[10px] text-gray-500 font-bold uppercase tracking-wider pl-1 pr-2">Filter Type:</span>
+            
+            <button
+              type="button"
+              onClick={() => setFileTypeFilter('all')}
+              className={`px-3 py-1.5 rounded-lg text-xs font-semibold flex items-center gap-1.5 transition-all duration-300 cursor-pointer active:scale-95 ${
+                fileTypeFilter === 'all'
+                  ? 'bg-gradient-to-r from-brand-accent to-brand-accent/80 text-white shadow-sm shadow-brand-accent/15'
+                  : 'bg-brand-card border border-brand-border text-gray-300 hover:text-brand-accent hover:border-brand-accent/40'
+              }`}
+            >
+              <File className="h-3.5 w-3.5" />
+              <span>All ({categoryCounts.all})</span>
+            </button>
+
+            <button
+              type="button"
+              onClick={() => setFileTypeFilter('pdf')}
+              className={`px-3 py-1.5 rounded-lg text-xs font-semibold flex items-center gap-1.5 transition-all duration-300 cursor-pointer active:scale-95 ${
+                fileTypeFilter === 'pdf'
+                  ? 'bg-gradient-to-r from-brand-rose to-brand-rose/80 text-white shadow-sm shadow-brand-rose/15'
+                  : 'bg-brand-card border border-brand-border text-gray-300 hover:text-brand-rose hover:border-brand-rose/40'
+              }`}
+            >
+              <FileText className="h-3.5 w-3.5 text-brand-rose" />
+              <span>PDFs ({categoryCounts.pdf})</span>
+            </button>
+
+            <button
+              type="button"
+              onClick={() => setFileTypeFilter('text')}
+              className={`px-3 py-1.5 rounded-lg text-xs font-semibold flex items-center gap-1.5 transition-all duration-300 cursor-pointer active:scale-95 ${
+                fileTypeFilter === 'text'
+                  ? 'bg-gradient-to-r from-amber-500 to-amber-600 text-white shadow-sm'
+                  : 'bg-brand-card border border-brand-border text-gray-300 hover:text-amber-500 hover:border-amber-500/40'
+              }`}
+            >
+              <FileText className="h-3.5 w-3.5 text-amber-500" />
+              <span>Text/Docs ({categoryCounts.text})</span>
+            </button>
+
+            <button
+              type="button"
+              onClick={() => setFileTypeFilter('images')}
+              className={`px-3 py-1.5 rounded-lg text-xs font-semibold flex items-center gap-1.5 transition-all duration-300 cursor-pointer active:scale-95 ${
+                fileTypeFilter === 'images'
+                  ? 'bg-gradient-to-r from-emerald-500 to-emerald-600 text-white shadow-sm'
+                  : 'bg-brand-card border border-brand-border text-gray-300 hover:text-emerald-500 hover:border-emerald-500/40'
+              }`}
+            >
+              <Image className="h-3.5 w-3.5 text-emerald-500" />
+              <span>Images ({categoryCounts.images})</span>
+            </button>
+
+            <button
+              type="button"
+              onClick={() => setFileTypeFilter('videos')}
+              className={`px-3 py-1.5 rounded-lg text-xs font-semibold flex items-center gap-1.5 transition-all duration-300 cursor-pointer active:scale-95 ${
+                fileTypeFilter === 'videos'
+                  ? 'bg-gradient-to-r from-sky-500 to-sky-600 text-white shadow-sm'
+                  : 'bg-brand-card border border-brand-border text-gray-300 hover:text-sky-500 hover:border-sky-500/40'
+              }`}
+            >
+              <Video className="h-3.5 w-3.5 text-sky-500" />
+              <span>Videos ({categoryCounts.videos})</span>
+            </button>
+
+            <button
+              type="button"
+              onClick={() => setFileTypeFilter('audio')}
+              className={`px-3 py-1.5 rounded-lg text-xs font-semibold flex items-center gap-1.5 transition-all duration-300 cursor-pointer active:scale-95 ${
+                fileTypeFilter === 'audio'
+                  ? 'bg-gradient-to-r from-purple-500 to-purple-600 text-white shadow-sm'
+                  : 'bg-brand-card border border-brand-border text-gray-300 hover:text-purple-500 hover:border-purple-500/40'
+              }`}
+            >
+              <Music className="h-3.5 w-3.5 text-purple-500" />
+              <span>Audio ({categoryCounts.audio})</span>
+            </button>
+          </div>
+
           <FileTree 
-            files={scannedFiles}
+            files={filteredFiles}
             scanPath={scanPath}
             selectedPaths={selectedPaths}
             onToggleSelection={handleToggleSelection}
@@ -397,15 +563,23 @@ export default function Cleaner() {
 
               <div className="flex gap-2">
                 <button 
+                  type="button"
+                  onClick={handleSkipSelection}
+                  className="bg-brand-card hover:bg-brand-card/85 border border-brand-border py-2 px-4 rounded-lg text-xs font-semibold text-gray-300 flex items-center gap-1.5 transition-colors cursor-pointer"
+                >
+                  <EyeOff className="h-4 w-4 text-amber-500" />
+                  <span>Skip Selected (Keep)</span>
+                </button>
+                <button 
                   onClick={() => handleTriggerReview(false)} // Safe Delete
-                  className="bg-brand-card hover:bg-brand-card/85 border border-brand-border py-2 px-4 rounded-lg text-xs font-semibold text-gray-300 flex items-center gap-1.5 transition-colors"
+                  className="bg-brand-card hover:bg-brand-card/85 border border-brand-border py-2 px-4 rounded-lg text-xs font-semibold text-gray-300 flex items-center gap-1.5 transition-colors cursor-pointer"
                 >
                   <ShieldCheck className="h-4 w-4 text-brand-accent" />
                   <span>Safe Delete</span>
                 </button>
                 <button 
                   onClick={() => handleTriggerReview(true)} // Permanent Shred
-                  className="bg-brand-rose/10 hover:bg-brand-rose/15 border border-brand-rose/30 text-brand-rose py-2 px-4 rounded-lg text-xs font-semibold flex items-center gap-1.5 transition-colors"
+                  className="bg-brand-rose/10 hover:bg-brand-rose/15 border border-brand-rose/30 text-brand-rose py-2 px-4 rounded-lg text-xs font-semibold flex items-center gap-1.5 transition-colors cursor-pointer"
                 >
                   <Trash2 className="h-4 w-4" />
                   <span>Permanent Delete</span>

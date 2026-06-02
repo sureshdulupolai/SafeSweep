@@ -113,11 +113,11 @@ class PerformanceManager:
         if cpu_load > 85.0:
             # CPU Spike backoff: Restrict thread execution allocation
             recommended_threads = max(1, int(self.max_threads * 0.25))
-            sleep_delay = 0.05  # 50ms pause per recursive sweep iteration
-        elif cpu_load > 60.0 or battery_saver:
+            sleep_delay = 0.002  # 2ms pause per recursive sweep iteration
+        elif cpu_load > 60.0:
             # Balanced backoff: Moderate thread allocations
             recommended_threads = max(2, int(self.max_threads * 0.5))
-            sleep_delay = 0.01  # 10ms pause per loop
+            sleep_delay = 0.0005  # 0.5ms pause per loop
             
         return recommended_threads, sleep_delay
 

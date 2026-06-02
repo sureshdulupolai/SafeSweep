@@ -56,12 +56,15 @@ class ScanningTask:
             "total_size_bytes": self.total_size_bytes
         })
         
+        limit_exceeded = self.scanned_count >= 5000
+        
         return {
             "status": "completed",
             "safe_mode_enforced": safe_mode,
             "files_found_count": self.scanned_count,
             "total_size_bytes": self.total_size_bytes,
-            "warning": safety_status["warning"]
+            "warning": safety_status["warning"],
+            "limit_exceeded": limit_exceeded
         }
 
     def _scan_quick_directories(self):
@@ -87,11 +90,6 @@ class ScanningTask:
         if exclusion_engine.is_excluded(current_dir):
             return
 
-        # Evaluate performance manager throttling
-        _, sleep_delay = performance_manager.evaluate_throttling()
-        if sleep_delay > 0.0:
-            time.sleep(sleep_delay)
-
         try:
             with os.scandir(current_dir) as it:
                 for entry in it:
@@ -114,6 +112,10 @@ class ScanningTask:
 
     def _process_file_entry(self, entry):
         """Validates, classifies, and indexes a single filesystem file."""
+        if self.scanned_count >= 5000:
+            self.cancel()
+            return
+
         try:
             file_path = entry.path
             
@@ -133,6 +135,10 @@ class ScanningTask:
             }
 
             with self.lock:
+                if self.scanned_count >= 5000:
+                    self.cancel()
+                    return
+
                 self.active_batch.append(file_record)
                 self.scanned_count += 1
                 self.total_size_bytes += size

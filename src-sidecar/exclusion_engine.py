@@ -72,7 +72,7 @@ class ExclusionEngine:
         
         # 1. Check custom user exclusions first
         for exclusion_path in self.custom_exclusions:
-            if norm_low.startswith(exclusion_path) or exclusion_path.startswith(norm_low):
+            if norm_low == exclusion_path or norm_low.startswith(exclusion_path + os.sep):
                 return True
 
         # 2. Check individual directory name elements (.git, node_modules, etc.)

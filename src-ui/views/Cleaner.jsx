@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Play, Square, Trash2, FolderSearch, ShieldCheck, ShieldAlert, Sparkles, Loader2, Download, Monitor, HardDrive, FolderOpen, Copy, Check } from 'lucide-react';
+import { Play, Square, Trash2, FolderSearch, ShieldCheck, ShieldAlert, Sparkles, Loader2, Download, Monitor, HardDrive, FolderOpen, Copy, Check, ExternalLink } from 'lucide-react';
 import { useAppStore } from '../store/useAppStore';
 import FileTree from '../components/FileTree';
 import SafeModeWatermark from '../components/SafeModeWatermark';
@@ -62,6 +62,25 @@ export default function Cleaner() {
     navigator.clipboard.writeText(scanPath);
     setCopied(true);
     setTimeout(() => setCopied(false), 2000);
+  };
+
+  const handleOpenExplorer = async () => {
+    if (!scanPath) return;
+    if (window.api && window.api.openSystemDirectory) {
+      try {
+        await window.api.openSystemDirectory(scanPath);
+      } catch (err) {
+        console.error('Failed to open directory in system explorer:', err);
+      }
+    } else {
+      // In browser fallback, call local sidecar HTTP API on port 9988 to open natively without showing browser alerts
+      try {
+        const url = `http://127.0.0.1:9988/api/open?path=${encodeURIComponent(scanPath)}`;
+        await fetch(url);
+      } catch (err) {
+        console.error('Browser Sandbox Fallback: Failed to call local API to open explorer:', err);
+      }
+    }
   };
 
   const handleBrowseFolder = async () => {
@@ -183,6 +202,16 @@ export default function Cleaner() {
                   ) : (
                     <Copy className="h-3.5 w-3.5" />
                   )}
+                </button>
+              )}
+              {scanPath && (
+                <button
+                  type="button"
+                  onClick={handleOpenExplorer}
+                  title="Open in File Explorer"
+                  className="p-1 rounded text-gray-400 hover:text-brand-accent hover:bg-brand-card transition-all flex items-center justify-center flex-shrink-0 cursor-pointer"
+                >
+                  <ExternalLink className="h-3.5 w-3.5" />
                 </button>
               )}
               <button

@@ -58,5 +58,10 @@ contextBridge.exposeInMainWorld('api', {
   /**
    * Triggers the native open folder dialog and returns chosen directory.
    */
-  selectDirectory: () => ipcRenderer.invoke('dialog:openDirectory')
+  selectDirectory: () => ipcRenderer.invoke('dialog:openDirectory'),
+
+  /**
+   * Opens the specified directory in the system file explorer.
+   */
+  openSystemDirectory: (path) => ipcRenderer.invoke('shell:openDirectory', path)
 });

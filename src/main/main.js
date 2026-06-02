@@ -176,6 +176,17 @@ ipcMain.handle('dialog:openDirectory', async () => {
   });
 });
 
+// Open Directory in File Explorer
+ipcMain.handle('shell:openDirectory', async (event, dirPath) => {
+  if (typeof dirPath !== 'string') return 'Invalid path';
+  const path = require('path');
+  if (!path.isAbsolute(dirPath)) {
+    return 'Path must be absolute';
+  }
+  const { shell } = require('electron');
+  return await shell.openPath(dirPath);
+});
+
 // --- LIFECYCLE CONTROLS ---
 
 app.on('ready', createWindow);

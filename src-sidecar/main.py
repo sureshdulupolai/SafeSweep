@@ -590,6 +590,30 @@ class LocalCleanerHTTPServer(BaseHTTPRequestHandler):
                         target = endpoint.split("target=")[1].split("&")[0]
                     res = handle_quick_clean({"target": target})
                     self.wfile.write(json.dumps(res).encode())
+                elif endpoint.startswith("open"):
+                    import urllib.parse
+                    open_path = ""
+                    if "path=" in endpoint:
+                        encoded_path = endpoint.split("path=")[1].split("&")[0]
+                        open_path = urllib.parse.unquote(encoded_path)
+                    
+                    if not open_path:
+                        self.wfile.write(json.dumps({"error": "Missing path parameter"}).encode())
+                    else:
+                        try:
+                            # Normalize path separators for Windows
+                            if sys.platform == 'win32':
+                                open_path = os.path.normpath(open_path)
+                                os.startfile(open_path)
+                            elif sys.platform == 'darwin':
+                                import subprocess
+                                subprocess.call(["open", open_path])
+                            else:
+                                import subprocess
+                                subprocess.call(["xdg-open", open_path])
+                            self.wfile.write(json.dumps({"success": True}).encode())
+                        except Exception as open_err:
+                            self.wfile.write(json.dumps({"error": str(open_err)}).encode())
                 elif endpoint.startswith("scan"):
                     import urllib.parse
                     scan_path = ""

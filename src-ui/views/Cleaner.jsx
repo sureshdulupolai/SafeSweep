@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Play, Square, Trash2, FolderSearch, ShieldCheck, ShieldAlert, Sparkles, Loader2 } from 'lucide-react';
+import { Play, Square, Trash2, FolderSearch, ShieldCheck, ShieldAlert, Sparkles, Loader2, Download, Monitor, HardDrive, FolderOpen, Copy, Check } from 'lucide-react';
 import { useAppStore } from '../store/useAppStore';
 import FileTree from '../components/FileTree';
 import SafeModeWatermark from '../components/SafeModeWatermark';
@@ -30,6 +30,7 @@ export default function Cleaner() {
   const [isDeleteModalOpen, setIsDeleteModalOpen] = useState(false);
   const [permanentDelete, setPermanentDelete] = useState(false);
   const [isTrustPanelOpen, setIsTrustPanelOpen] = useState(false);
+  const [copied, setCopied] = useState(false);
 
   // Sync scan path to dynamic defaultDownloads when it finishes loading
   useEffect(() => {
@@ -54,6 +55,46 @@ export default function Cleaner() {
   const handleStartScan = () => {
     if (!scanPath) return;
     startScan(scanPath);
+  };
+
+  const handleCopyPath = () => {
+    if (!scanPath) return;
+    navigator.clipboard.writeText(scanPath);
+    setCopied(true);
+    setTimeout(() => setCopied(false), 2000);
+  };
+
+  const handleBrowseFolder = async () => {
+    if (window.api && window.api.selectDirectory) {
+      try {
+        const result = await window.api.selectDirectory();
+        if (result && !result.canceled && result.filePaths && result.filePaths.length > 0) {
+          setScanPath(result.filePaths[0]);
+        }
+      } catch (err) {
+        console.error('Failed to open native folder dialog:', err);
+      }
+    } else if (window.showDirectoryPicker) {
+      try {
+        const handle = await window.showDirectoryPicker();
+        setScanPath(`C:\\Users\\user\\${handle.name}`);
+      } catch (err) {
+        console.error('Directory picker cancelled or failed:', err);
+      }
+    } else {
+      // Fallback: trigger a hidden file input with webkitdirectory
+      const input = document.createElement('input');
+      input.type = 'file';
+      input.webkitdirectory = true;
+      input.onchange = (e) => {
+        if (e.target.files && e.target.files.length > 0) {
+          const file = e.target.files[0];
+          const path = file.path || file.webkitRelativePath.split('/')[0] || 'C:\\SelectedFolder';
+          setScanPath(path);
+        }
+      };
+      input.click();
+    }
   };
 
   const handleToggleSelection = (pathsArray, check) => {
@@ -110,63 +151,119 @@ export default function Cleaner() {
       onDrop={handleDrop}
     >
       {/* Search Target Deck */}
-      <div className="glass-card p-4 flex flex-col md:flex-row items-center gap-3">
-        <div className="flex-1 w-full space-y-1">
-          <label className="text-[10px] text-gray-500 font-semibold uppercase tracking-wider block">Target Scan Directory</label>
-          <div className="flex gap-2 items-center">
-            <FolderSearch className="h-5 w-5 text-gray-400" />
-            <input 
-              type="text" 
-              value={scanPath}
-              onChange={(e) => setScanPath(e.target.value)}
-              placeholder="Paste directory path or drop folder here"
-              disabled={scanStatus === 'scanning'}
-              className="bg-brand-darkest border border-brand-border rounded-lg px-3 py-1.5 flex-1 focus:outline-none focus:border-brand-accent text-xs font-mono text-gray-200"
-            />
+      <div className="glass-card p-5 flex flex-col gap-4">
+        {/* Top Row: Address/Target scan directory input and main action buttons */}
+        <div className="flex flex-col md:flex-row md:items-end gap-3 w-full">
+          <div className="flex-1 space-y-1.5 w-full">
+            <label className="text-[10px] text-gray-500 font-semibold uppercase tracking-wider block">Target Scan Directory</label>
+            <div className="flex gap-2 items-center bg-brand-darkest border border-brand-border rounded-lg px-3 py-1.5 focus-within:border-brand-accent transition-all">
+              <FolderSearch className="h-4.5 w-4.5 text-gray-400 flex-shrink-0" />
+              <input 
+                type="text" 
+                value={scanPath}
+                onChange={(e) => setScanPath(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter' && scanPath && scanStatus !== 'scanning') {
+                    handleStartScan();
+                  }
+                }}
+                placeholder="Paste directory path, drop folder, or browse"
+                disabled={scanStatus === 'scanning'}
+                className="bg-transparent border-none flex-1 focus:outline-none text-xs font-mono text-gray-200 w-full"
+              />
+              {scanPath && (
+                <button
+                  type="button"
+                  onClick={handleCopyPath}
+                  title="Copy Path"
+                  className="p-1 rounded text-gray-400 hover:text-brand-accent hover:bg-brand-card transition-all flex items-center justify-center flex-shrink-0 cursor-pointer"
+                >
+                  {copied ? (
+                    <Check className="h-3.5 w-3.5 text-brand-green" />
+                  ) : (
+                    <Copy className="h-3.5 w-3.5" />
+                  )}
+                </button>
+              )}
+              <button
+                type="button"
+                onClick={handleBrowseFolder}
+                disabled={scanStatus === 'scanning'}
+                title="Browse Folder"
+                className="p-1 rounded text-gray-400 hover:text-brand-accent hover:bg-brand-card transition-all flex items-center justify-center flex-shrink-0 border border-transparent hover:border-brand-border/40 cursor-pointer"
+              >
+                <FolderOpen className="h-4 w-4" />
+              </button>
+            </div>
           </div>
-          {/* Quick Preset Chips */}
-          <div className="flex flex-wrap gap-2 mt-2 select-none">
-            <button 
-              onClick={() => setScanPath(defaultDownloads)}
-              disabled={scanStatus === 'scanning'}
-              className="px-2.5 py-1 rounded bg-brand-card hover:bg-brand-card/85 border border-brand-border text-[10px] font-semibold text-gray-300 transition-colors"
-            >
-              📂 Downloads Folder
-            </button>
-            <button 
-              onClick={() => setScanPath(defaultDesktop)}
-              disabled={scanStatus === 'scanning'}
-              className="px-2.5 py-1 rounded bg-brand-card hover:bg-brand-card/85 border border-brand-border text-[10px] font-semibold text-gray-300 transition-colors"
-            >
-              🖥️ Desktop Folder
-            </button>
-            <button 
-              onClick={() => setScanPath('C:\\')}
-              disabled={scanStatus === 'scanning'}
-              className="px-2.5 py-1 rounded bg-brand-card hover:bg-brand-card/85 border border-brand-border text-[10px] font-semibold text-gray-300 transition-colors"
-            >
-              💿 C:\ System Drive
-            </button>
+
+          <div className="flex gap-2 w-full md:w-auto h-[34px] md:h-[34px] items-stretch">
+            {scanStatus === 'scanning' ? (
+              <button 
+                type="button"
+                onClick={cancelScan}
+                className="flex-1 md:flex-none bg-brand-rose/25 hover:bg-brand-rose/30 border border-brand-rose/40 text-brand-rose py-1.5 px-4 rounded-lg text-xs font-semibold flex items-center justify-center gap-1.5 transition-all active:scale-[0.98] shadow-sm cursor-pointer"
+              >
+                <Square className="h-3.5 w-3.5" />
+                <span>Cancel Scan</span>
+              </button>
+            ) : (
+              <button 
+                type="button"
+                onClick={handleStartScan}
+                disabled={!scanPath}
+                className={`flex-1 md:flex-none py-1.5 px-5 rounded-lg text-xs font-bold flex items-center justify-center gap-1.5 transition-all active:scale-[0.98] shadow-md ${
+                  scanPath 
+                    ? 'bg-gradient-to-r from-brand-accent to-brand-accent/80 hover:brightness-110 text-white shadow-brand-accent/15 cursor-pointer' 
+                    : 'bg-brand-card border border-brand-border text-gray-500 cursor-not-allowed'
+                }`}
+              >
+                <Play className="h-3.5 w-3.5" />
+                <span>Start Analysis</span>
+              </button>
+            )}
           </div>
         </div>
 
-        <div className="flex gap-2 w-full md:w-auto md:self-end">
-          {scanStatus === 'scanning' ? (
-            <button 
-              onClick={cancelScan}
-              className="flex-1 md:flex-none bg-brand-rose/25 hover:bg-brand-rose/30 border border-brand-rose/40 text-brand-rose py-1.5 px-4 rounded-lg text-xs font-semibold flex items-center justify-center gap-1.5 transition-colors"
-            >
-              <Square className="h-4 w-4" />
-              <span>Cancel Scan</span>
-            </button>
-          ) : (
-            <button 
-              onClick={handleStartScan}
-              className="flex-1 md:flex-none bg-brand-accent hover:bg-brand-accent/95 text-white py-1.5 px-4 rounded-lg text-xs font-semibold flex items-center justify-center gap-1.5 transition-colors"
-            >
-              <Play className="h-4 w-4" />
-              <span>Start Analysis</span>
-            </button>
+        {/* Bottom Row: Quick Presets */}
+        <div className="border-t border-brand-border/30 pt-3 flex flex-col sm:flex-row sm:items-center justify-between gap-3 select-none">
+          <div className="flex flex-col gap-1.5">
+            <span className="text-[10px] text-gray-500 font-semibold uppercase tracking-wider block">Quick Presets</span>
+            <div className="flex flex-wrap gap-2.5">
+              <button 
+                type="button"
+                onClick={() => setScanPath(defaultDownloads)}
+                disabled={scanStatus === 'scanning'}
+                className="group px-3 py-1.5 rounded-lg bg-brand-card hover:bg-brand-accent/10 border border-brand-border hover:border-brand-accent/40 text-xs font-medium text-gray-300 hover:text-brand-accent transition-all duration-300 flex items-center gap-2 active:scale-95 cursor-pointer shadow-sm"
+              >
+                <Download className="h-3.5 w-3.5 text-amber-500 group-hover:text-brand-accent transition-colors" />
+                <span>Downloads Folder</span>
+              </button>
+              <button 
+                type="button"
+                onClick={() => setScanPath(defaultDesktop)}
+                disabled={scanStatus === 'scanning'}
+                className="group px-3 py-1.5 rounded-lg bg-brand-card hover:bg-brand-accent/10 border border-brand-border hover:border-brand-accent/40 text-xs font-medium text-gray-300 hover:text-brand-accent transition-all duration-300 flex items-center gap-2 active:scale-95 cursor-pointer shadow-sm"
+              >
+                <Monitor className="h-3.5 w-3.5 text-sky-500 group-hover:text-brand-accent transition-colors" />
+                <span>Desktop Folder</span>
+              </button>
+              <button 
+                type="button"
+                onClick={() => setScanPath('C:\\')}
+                disabled={scanStatus === 'scanning'}
+                className="group px-3 py-1.5 rounded-lg bg-brand-card hover:bg-brand-accent/10 border border-brand-border hover:border-brand-accent/40 text-xs font-medium text-gray-300 hover:text-brand-accent transition-all duration-300 flex items-center gap-2 active:scale-95 cursor-pointer shadow-sm"
+              >
+                <HardDrive className="h-3.5 w-3.5 text-indigo-400 group-hover:text-brand-accent transition-colors" />
+                <span>C:\ System Drive</span>
+              </button>
+            </div>
+          </div>
+          
+          {scanPath && (
+            <div className="text-[10px] font-mono text-gray-500 self-end sm:self-center">
+              Selected: <span className="text-gray-400 font-semibold">{scanPath}</span>
+            </div>
           )}
         </div>
       </div>

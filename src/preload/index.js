@@ -53,5 +53,10 @@ contextBridge.exposeInMainWorld('api', {
     const subscription = (event, packet) => callback(packet);
     ipcRenderer.on('system:error', subscription);
     return () => ipcRenderer.removeListener('system:error', subscription);
-  }
+  },
+
+  /**
+   * Triggers the native open folder dialog and returns chosen directory.
+   */
+  selectDirectory: () => ipcRenderer.invoke('dialog:openDirectory')
 });

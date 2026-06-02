@@ -1,4 +1,4 @@
-const { app, BrowserWindow, ipcMain, nativeTheme } = require('electron');
+const { app, BrowserWindow, ipcMain, nativeTheme, dialog } = require('electron');
 const path = require('path');
 const SidecarManager = require('./sidecar');
 const { applySecurityHeaders, enforceWindowHarden, validateIPCMessage } = require('./security');
@@ -164,6 +164,16 @@ ipcMain.on('taskbar:progress', (event, ratio) => {
   if (mainWindow && !mainWindow.isDestroyed()) {
     mainWindow.setProgressBar(ratio); // Value between 0 and 1. Set to -1 to clear.
   }
+});
+
+// Open Native Directory Dialog
+ipcMain.handle('dialog:openDirectory', async () => {
+  if (!mainWindow) return { canceled: true };
+  return await dialog.showOpenDialog(mainWindow, {
+    properties: ['openDirectory', 'createDirectory'],
+    title: 'Select Scan Target Directory',
+    buttonLabel: 'Select Folder'
+  });
 });
 
 // --- LIFECYCLE CONTROLS ---

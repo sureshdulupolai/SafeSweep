@@ -220,7 +220,7 @@ export default function Cleaner() {
   const handleReloadBatch = async () => {
     if (isFetching || reloadCooldown > 0) return;
     setIsFetching(true);
-    
+
     try {
       // Execute a real backend request to fulfill the strict network response requirement
       await fetch('http://127.0.0.1:9988/api/stats', { method: 'GET' });
@@ -234,7 +234,7 @@ export default function Cleaner() {
       nextStartIndex = 0;
       setShuffledTopLevel(shuffleArray(activeShuffledTopLevel));
     }
-    
+
     setStartIndex(nextStartIndex);
     setIsFetching(false);
     setReloadCooldown(5); // Start the 5-second anti-spam cooldown on the button
@@ -277,9 +277,9 @@ export default function Cleaner() {
 
   const activeShuffledTopLevel = shuffledTopLevel.filter(name => activeTopLevelSet.has(name));
   const visibleTopLevelNames = activeShuffledTopLevel.slice(startIndex, Math.min(startIndex + CHUNK_SIZE, activeShuffledTopLevel.length));
-  
+
   const visibleFiles = filteredFiles.filter(f => visibleTopLevelNames.includes(getTopLevelName(f.path, scanPath)));
-  
+
   const visiblePaths = visibleFiles.map(f => f.path);
   const visibleSelectedPaths = selectedPaths.filter(p => visiblePaths.includes(p));
 
@@ -315,7 +315,7 @@ export default function Cleaner() {
   };
 
   return (
-    <motion.div 
+    <motion.div
       initial={{ opacity: 0, y: 15 }}
       animate={{ opacity: 1, y: 0 }}
       exit={{ opacity: 0, y: 15 }}
@@ -345,8 +345,8 @@ export default function Cleaner() {
             <label className="text-[10px] text-gray-500 font-semibold uppercase tracking-wider block">Target Scan Directory</label>
             <div className="flex gap-2 items-center bg-brand-darkest border border-brand-border rounded-lg px-3 py-1.5 focus-within:border-brand-accent transition-all">
               <FolderSearch className="h-4.5 w-4.5 text-gray-400 flex-shrink-0" />
-              <input 
-                type="text" 
+              <input
+                type="text"
                 value={scanPath}
                 onChange={(e) => setScanPath(e.target.value)}
                 onKeyDown={(e) => {
@@ -396,7 +396,7 @@ export default function Cleaner() {
 
           <div className="flex gap-2 w-full md:w-auto h-[34px] md:h-[34px] items-stretch">
             {scanStatus === 'scanning' ? (
-              <button 
+              <button
                 type="button"
                 onClick={cancelScan}
                 className="flex-1 md:flex-none bg-brand-rose/25 hover:bg-brand-rose/30 border border-brand-rose/40 text-brand-rose py-1.5 px-4 rounded-lg text-xs font-semibold flex items-center justify-center gap-1.5 transition-all active:scale-[0.98] shadow-sm cursor-pointer"
@@ -405,15 +405,14 @@ export default function Cleaner() {
                 <span>Cancel Scan</span>
               </button>
             ) : (
-              <button 
+              <button
                 type="button"
                 onClick={handleStartScan}
                 disabled={!scanPath}
-                className={`flex-1 md:flex-none py-1.5 px-5 rounded-lg text-xs font-bold flex items-center justify-center gap-1.5 transition-all active:scale-[0.98] shadow-md ${
-                  scanPath 
-                    ? 'bg-gradient-to-r from-brand-accent to-brand-accent/80 hover:brightness-110 text-white shadow-brand-accent/15 cursor-pointer' 
+                className={`flex-1 md:flex-none py-1.5 px-5 rounded-lg text-xs font-bold flex items-center justify-center gap-1.5 transition-all active:scale-[0.98] shadow-md ${scanPath
+                    ? 'bg-gradient-to-r from-brand-accent to-brand-accent/80 hover:brightness-110 text-white shadow-brand-accent/15 cursor-pointer'
                     : 'bg-brand-card border border-brand-border text-gray-500 cursor-not-allowed'
-                }`}
+                  }`}
               >
                 <Play className="h-3.5 w-3.5" />
                 <span>Start Analysis</span>
@@ -427,7 +426,7 @@ export default function Cleaner() {
           <div className="flex flex-col gap-1.5">
             <span className="text-[10px] text-gray-500 font-semibold uppercase tracking-wider block">Quick Presets</span>
             <div className="flex flex-wrap gap-2.5">
-              <button 
+              <button
                 type="button"
                 onClick={() => setScanPath(defaultDownloads)}
                 disabled={scanStatus === 'scanning'}
@@ -436,7 +435,7 @@ export default function Cleaner() {
                 <Download className="h-3.5 w-3.5 text-amber-500 group-hover:text-brand-accent transition-colors" />
                 <span>Downloads Folder</span>
               </button>
-              <button 
+              <button
                 type="button"
                 onClick={() => setScanPath(defaultDesktop)}
                 disabled={scanStatus === 'scanning'}
@@ -445,7 +444,7 @@ export default function Cleaner() {
                 <Monitor className="h-3.5 w-3.5 text-sky-500 group-hover:text-brand-accent transition-colors" />
                 <span>Desktop Folder</span>
               </button>
-              <button 
+              <button
                 type="button"
                 onClick={() => setScanPath('C:\\')}
                 disabled={scanStatus === 'scanning'}
@@ -456,7 +455,7 @@ export default function Cleaner() {
               </button>
             </div>
           </div>
-          
+
           {scanPath && (
             <div className="text-[10px] font-mono text-gray-500 self-end sm:self-center">
               Selected: <span className="text-gray-400 font-semibold">{scanPath}</span>
@@ -470,7 +469,7 @@ export default function Cleaner() {
 
       {/* Large Directory Capacity Capping Alert */}
       {limitExceeded && (
-        <motion.div 
+        <motion.div
           initial={{ opacity: 0, y: -10 }}
           animate={{ opacity: 1, y: 0 }}
           className="bg-brand-amber/10 border border-brand-amber/20 p-4 rounded-xl flex items-start gap-3 text-brand-amber text-xs select-none"
@@ -490,7 +489,7 @@ export default function Cleaner() {
 
       {/* Success banner after deletion */}
       {deleteStatus === 'completed' && (
-        <motion.div 
+        <motion.div
           initial={{ opacity: 0, y: -10 }}
           animate={{ opacity: 1, y: 0 }}
           className="bg-brand-green/10 border border-brand-green/20 p-4 rounded-xl flex items-center justify-between text-brand-green text-xs font-semibold select-none animate-fadeIn"
@@ -499,7 +498,7 @@ export default function Cleaner() {
             <ShieldCheck className="h-5 w-5" />
             <span>Cleanup finished successfully! {deletedCount} assets safely unlinked.</span>
           </div>
-          <button 
+          <button
             onClick={() => useAppStore.setState({ deleteStatus: 'idle' })}
             className="text-gray-400 hover:text-gray-200 transition-colors"
           >
@@ -513,11 +512,10 @@ export default function Cleaner() {
         <div className="glass-card p-4 space-y-2">
           <div className="flex justify-between items-center text-xs font-mono">
             <span className="text-gray-400">Traversing Folders...</span>
-            <span className="text-brand-accent font-bold">{scannedCount.toLocaleString()} files indexed</span>
           </div>
           {/* Progress bar */}
           <div className="w-full bg-brand-darkest rounded-full h-2 overflow-hidden relative">
-            <motion.div 
+            <motion.div
               initial={{ left: '-50%', width: '40%' }}
               animate={{ left: '110%' }}
               transition={{ repeat: Infinity, duration: 1.5, ease: "easeInOut" }}
@@ -541,7 +539,7 @@ export default function Cleaner() {
           </div>
           {/* Progress bar */}
           <div className="w-full bg-brand-darkest rounded-full h-2 overflow-hidden">
-            <motion.div 
+            <motion.div
               initial={{ width: '0%' }}
               animate={{ width: `${selectedPaths.length > 0 ? (deletedCount / selectedPaths.length) * 100 : 0}%` }}
               transition={{ duration: 0.1 }}
@@ -559,8 +557,8 @@ export default function Cleaner() {
               <span className="text-gray-400">Total Scanned Size: <strong className="text-gray-200">{formatBytes(scannedBytes)}</strong></span>
               <span className="text-gray-500 border-l border-brand-border pl-3">Selection Size: <strong className="text-brand-green">{formatBytes(visibleFiles.filter(f => selectedPaths.includes(f.path)).reduce((acc, curr) => acc + curr.size, 0))}</strong></span>
             </div>
-            
-            <button 
+
+            <button
               onClick={() => setIsTrustPanelOpen(true)}
               className="text-xs text-brand-accent hover:underline flex items-center gap-1"
             >
@@ -571,15 +569,14 @@ export default function Cleaner() {
           {/* File Type Filter Chips */}
           <div className="flex flex-wrap items-center gap-2 p-2 bg-brand-card/30 border border-brand-border/40 rounded-xl select-none">
             <span className="text-[10px] text-gray-500 font-bold uppercase tracking-wider pl-1 pr-2">Filter Type:</span>
-            
+
             <button
               type="button"
               onClick={() => setFileTypeFilter('all')}
-              className={`px-3 py-1.5 rounded-lg text-xs font-semibold flex items-center gap-1.5 transition-all duration-300 cursor-pointer active:scale-95 ${
-                fileTypeFilter === 'all'
+              className={`px-3 py-1.5 rounded-lg text-xs font-semibold flex items-center gap-1.5 transition-all duration-300 cursor-pointer active:scale-95 ${fileTypeFilter === 'all'
                   ? 'bg-gradient-to-r from-brand-accent to-brand-accent/80 text-white shadow-sm shadow-brand-accent/15'
                   : 'bg-brand-card border border-brand-border text-gray-300 hover:text-brand-accent hover:border-brand-accent/40'
-              }`}
+                }`}
             >
               <File className="h-3.5 w-3.5" />
               <span>All ({categoryCounts.all > 20000 ? '20000+' : categoryCounts.all})</span>
@@ -588,11 +585,10 @@ export default function Cleaner() {
             <button
               type="button"
               onClick={() => setFileTypeFilter('pdf')}
-              className={`px-3 py-1.5 rounded-lg text-xs font-semibold flex items-center gap-1.5 transition-all duration-300 cursor-pointer active:scale-95 ${
-                fileTypeFilter === 'pdf'
+              className={`px-3 py-1.5 rounded-lg text-xs font-semibold flex items-center gap-1.5 transition-all duration-300 cursor-pointer active:scale-95 ${fileTypeFilter === 'pdf'
                   ? 'bg-gradient-to-r from-brand-rose to-brand-rose/80 text-white shadow-sm shadow-brand-rose/15'
                   : 'bg-brand-card border border-brand-border text-gray-300 hover:text-brand-rose hover:border-brand-rose/40'
-              }`}
+                }`}
             >
               <FileText className="h-3.5 w-3.5 text-brand-rose" />
               <span>PDFs ({categoryCounts.pdf})</span>
@@ -601,11 +597,10 @@ export default function Cleaner() {
             <button
               type="button"
               onClick={() => setFileTypeFilter('text')}
-              className={`px-3 py-1.5 rounded-lg text-xs font-semibold flex items-center gap-1.5 transition-all duration-300 cursor-pointer active:scale-95 ${
-                fileTypeFilter === 'text'
+              className={`px-3 py-1.5 rounded-lg text-xs font-semibold flex items-center gap-1.5 transition-all duration-300 cursor-pointer active:scale-95 ${fileTypeFilter === 'text'
                   ? 'bg-gradient-to-r from-amber-500 to-amber-600 text-white shadow-sm'
                   : 'bg-brand-card border border-brand-border text-gray-300 hover:text-amber-500 hover:border-amber-500/40'
-              }`}
+                }`}
             >
               <FileText className="h-3.5 w-3.5 text-amber-500" />
               <span>Text/Docs ({categoryCounts.text})</span>
@@ -614,11 +609,10 @@ export default function Cleaner() {
             <button
               type="button"
               onClick={() => setFileTypeFilter('images')}
-              className={`px-3 py-1.5 rounded-lg text-xs font-semibold flex items-center gap-1.5 transition-all duration-300 cursor-pointer active:scale-95 ${
-                fileTypeFilter === 'images'
+              className={`px-3 py-1.5 rounded-lg text-xs font-semibold flex items-center gap-1.5 transition-all duration-300 cursor-pointer active:scale-95 ${fileTypeFilter === 'images'
                   ? 'bg-gradient-to-r from-emerald-500 to-emerald-600 text-white shadow-sm'
                   : 'bg-brand-card border border-brand-border text-gray-300 hover:text-emerald-500 hover:border-emerald-500/40'
-              }`}
+                }`}
             >
               <Image className="h-3.5 w-3.5 text-emerald-500" />
               <span>Images ({categoryCounts.images})</span>
@@ -627,11 +621,10 @@ export default function Cleaner() {
             <button
               type="button"
               onClick={() => setFileTypeFilter('videos')}
-              className={`px-3 py-1.5 rounded-lg text-xs font-semibold flex items-center gap-1.5 transition-all duration-300 cursor-pointer active:scale-95 ${
-                fileTypeFilter === 'videos'
+              className={`px-3 py-1.5 rounded-lg text-xs font-semibold flex items-center gap-1.5 transition-all duration-300 cursor-pointer active:scale-95 ${fileTypeFilter === 'videos'
                   ? 'bg-gradient-to-r from-sky-500 to-sky-600 text-white shadow-sm'
                   : 'bg-brand-card border border-brand-border text-gray-300 hover:text-sky-500 hover:border-sky-500/40'
-              }`}
+                }`}
             >
               <Video className="h-3.5 w-3.5 text-sky-500" />
               <span>Videos ({categoryCounts.videos})</span>
@@ -640,8 +633,7 @@ export default function Cleaner() {
             <button
               type="button"
               onClick={() => setFileTypeFilter('audio')}
-              className={`px-3 py-1.5 rounded-lg text-xs font-semibold flex items-center gap-1.5 transition-all duration-300 cursor-pointer active:scale-95 ${
-                fileTypeFilter === 'audio'
+              className={`px-3 py-1.5 rounded-lg text-xs font-semibold flex items-center gap-1.5 transition-all duration-300 cursor-pointer active:scale-95 ${fileTypeFilter === 'audio'
                   ? 'bg-gradient-to-r from-purple-500 to-purple-600 text-white shadow-sm'
                   : 'bg-brand-card border border-brand-border text-gray-300 hover:text-purple-500 hover:border-purple-500/40'
               }`}
@@ -652,12 +644,16 @@ export default function Cleaner() {
           </div>
 
           {isFetching ? (
-            <div className="flex-1 bg-brand-darkest border border-brand-border rounded-xl p-3 min-h-[300px] flex flex-col items-center justify-center space-y-4">
-              <Loader2 className="h-8 w-8 text-brand-accent animate-spin" />
+            <div className="flex-1 bg-brand-darkest/40 border border-brand-border/60 rounded-xl p-3 min-h-[300px] flex flex-col items-center justify-center space-y-4">
+              <motion.div 
+                animate={{ rotate: 360 }}
+                transition={{ repeat: Infinity, duration: 1, ease: "linear" }}
+                className="w-8 h-8 border-[3px] border-brand-border border-t-brand-accent rounded-full"
+              />
               <span className="text-xs text-gray-400 font-mono tracking-widest uppercase">Fetching Batch...</span>
             </div>
           ) : (
-            <FileTree 
+            <FileTree
               files={visibleFiles}
               scanPath={scanPath}
               selectedPaths={selectedPaths}
@@ -671,23 +667,26 @@ export default function Cleaner() {
               <div className="space-y-1">
                 <span className="text-xs font-semibold text-gray-200">Execution Strategy</span>
                 <p className="text-[10px] text-gray-400">
-                  {startIndex > 0 ? `Showing batch ${Math.floor(startIndex/CHUNK_SIZE) + 1} of ${Math.ceil(activeShuffledTopLevel.length/CHUNK_SIZE)}` : 'Choose between a safe Recycle Bin sweep or advanced cryptographic file unlinking.'}
+                  {startIndex > 0 ? `Showing batch ${Math.floor(startIndex / CHUNK_SIZE) + 1} of ${Math.ceil(activeShuffledTopLevel.length / CHUNK_SIZE)}` : 'Choose between a safe Recycle Bin sweep or advanced cryptographic file unlinking.'}
                 </p>
               </div>
 
               <div className="flex gap-2">
-                <button 
+                <button
                   type="button"
                   onClick={handleReloadBatch}
                   disabled={isFetching || reloadCooldown > 0}
-                  className={`py-2 px-4 rounded-lg text-xs font-semibold flex items-center gap-1.5 transition-colors ${
-                    (isFetching || reloadCooldown > 0)
+                  className={`py-2 px-4 rounded-lg text-xs font-semibold flex items-center gap-1.5 transition-colors ${(isFetching || reloadCooldown > 0)
                       ? 'bg-brand-card/50 border border-brand-border/50 text-gray-500 cursor-not-allowed'
                       : 'bg-brand-card hover:bg-brand-card/85 border border-brand-border text-gray-300 cursor-pointer'
-                  }`}
+                    }`}
                 >
                   {isFetching ? (
-                    <Loader2 className="h-4 w-4 text-gray-500 animate-spin" />
+                    <div className="flex gap-[3px] items-center justify-center w-4 h-4 px-1">
+                      <motion.div animate={{ y: [0, -2, 0] }} transition={{ repeat: Infinity, duration: 0.8, ease: "easeInOut", delay: 0 }} className="w-1 h-1 bg-gray-400 rounded-full" />
+                      <motion.div animate={{ y: [0, -2, 0] }} transition={{ repeat: Infinity, duration: 0.8, ease: "easeInOut", delay: 0.15 }} className="w-1 h-1 bg-gray-400 rounded-full" />
+                      <motion.div animate={{ y: [0, -2, 0] }} transition={{ repeat: Infinity, duration: 0.8, ease: "easeInOut", delay: 0.3 }} className="w-1 h-1 bg-gray-400 rounded-full" />
+                    </div>
                   ) : reloadCooldown > 0 ? (
                     <RefreshCw className="h-4 w-4 text-gray-500" />
                   ) : (
@@ -695,26 +694,24 @@ export default function Cleaner() {
                   )}
                   <span>{isFetching ? 'Fetching...' : reloadCooldown > 0 ? `Wait ${reloadCooldown}s...` : 'Reload Batch'}</span>
                 </button>
-                <button 
+                <button
                   onClick={() => handleTriggerReview(false)} // Safe Delete
                   disabled={visibleSelectedPaths.length === 0 || isFetching}
-                  className={`py-2 px-4 rounded-lg text-xs font-semibold flex items-center gap-1.5 transition-colors ${
-                    visibleSelectedPaths.length > 0 && !isFetching
+                  className={`py-2 px-4 rounded-lg text-xs font-semibold flex items-center gap-1.5 transition-colors ${visibleSelectedPaths.length > 0 && !isFetching
                       ? 'bg-brand-card hover:bg-brand-card/85 border border-brand-border text-gray-300 cursor-pointer'
                       : 'bg-brand-card/50 border border-brand-border/50 text-gray-500 cursor-not-allowed'
-                  }`}
+                    }`}
                 >
                   <ShieldCheck className="h-4 w-4 text-brand-accent" />
                   <span>Safe Delete</span>
                 </button>
-                <button 
+                <button
                   onClick={() => handleTriggerReview(true)} // Permanent Shred
                   disabled={visibleSelectedPaths.length === 0 || isFetching}
-                  className={`py-2 px-4 rounded-lg text-xs font-semibold flex items-center gap-1.5 transition-colors ${
-                    visibleSelectedPaths.length > 0 && !isFetching
+                  className={`py-2 px-4 rounded-lg text-xs font-semibold flex items-center gap-1.5 transition-colors ${visibleSelectedPaths.length > 0 && !isFetching
                       ? 'bg-brand-rose/10 hover:bg-brand-rose/15 border border-brand-rose/30 text-brand-rose cursor-pointer'
                       : 'bg-brand-rose/5 border border-brand-rose/10 text-brand-rose/50 cursor-not-allowed'
-                  }`}
+                    }`}
                 >
                   <Trash2 className="h-4 w-4" />
                   <span>Permanent Delete</span>
@@ -729,7 +726,7 @@ export default function Cleaner() {
       <TrustPanel isOpen={isTrustPanelOpen} onClose={() => setIsTrustPanelOpen(false)} />
 
       {/* Multi-step warning deletion modal */}
-      <DeleteModal 
+      <DeleteModal
         isOpen={isDeleteModalOpen}
         onClose={() => {
           setIsDeleteModalOpen(false);

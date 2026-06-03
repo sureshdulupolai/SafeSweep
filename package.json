@@ -4,7 +4,7 @@
   "description": "Premium, offline-first, and safety-focused Windows desktop utility.",
   "main": "src/main/main.js",
   "scripts": {
-    "dev": "vite --logLevel warn",
+    "dev": "vite --force --logLevel warn",
     "build:ui": "vite build",
     "build:sidecar": "pyinstaller --clean --noconfirm --onefile --distpath sidecar-dist src-sidecar/main.py",
     "build": "npm run build:ui && npm run build:sidecar",

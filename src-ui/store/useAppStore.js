@@ -50,9 +50,6 @@ export const useAppStore = create((set, get) => {
     limitExceeded: false,
     skippedPaths: [],
 
-    // Duplicate files
-    duplicatesStatus: 'idle',
-    duplicatesList: [],
 
     // Deletion states
     deleteStatus: 'idle', // idle, deleting, completed
@@ -66,34 +63,6 @@ export const useAppStore = create((set, get) => {
     quickCleanFilesDeleted: 0,
     quickCleanFilesSkipped: 0,
 
-    // Quarantine recoveries
-    quarantineItems: [],
-    fetchQuarantine: () => {
-      if (window.api) {
-        window.api.sendRequest('quarantine:list');
-      } else {
-        if (get().quarantineItems.length === 0) {
-          set({
-            quarantineItems: [
-              {
-                id: 'q_item_1',
-                name: 'cracked_game_patch.exe',
-                directory: 'C:\\Users\\User\\Downloads',
-                size: 48024800,
-                created_at: new Date(Date.now() - 4 * 3600 * 1000).toISOString()
-              },
-              {
-                id: 'q_item_2',
-                name: 'unknown_installer.tmp',
-                directory: 'C:\\Users\\User\\AppData\\Local\\Temp',
-                size: 122880,
-                created_at: new Date(Date.now() - 2 * 3600 * 1000).toISOString()
-              }
-            ]
-          });
-        }
-      }
-    },
 
     // System alerts from Watchdog
     serviceWarning: null,
@@ -321,13 +290,7 @@ export const useAppStore = create((set, get) => {
             deletedCount: params.deleted_count,
             failedCount: params.failed_count
           });
-        } else if (method === 'duplicates.progress') {
-          // Handled locally in DuplicateFinder component - no store update needed
-        } else if (method === 'duplicates.completed') {
-          set({
-            duplicatesList: params.duplicates || [],
-            duplicatesStatus: 'completed'
-          });
+
         } else if (method === 'delete.completed') {
           const wasCapped = get().limitExceeded;
           set((state) => {
@@ -339,7 +302,7 @@ export const useAppStore = create((set, get) => {
               activeSimulation: null
             };
           });
-          get().fetchQuarantine();
+          // Cleanup logic
           
           if (wasCapped) {
             const currentScanPath = get().scanPath;
@@ -389,7 +352,7 @@ export const useAppStore = create((set, get) => {
           get().fetchDiskSpace();
           get().fetchDashboardStats();
           get().fetchRecycleBin();
-          get().fetchQuarantine();
+          // Initialization complete
           return;
         }
 
@@ -508,7 +471,7 @@ export const useAppStore = create((set, get) => {
               activeSimulation: null
             };
           });
-          get().fetchQuarantine();
+          // Cleanup logic
           
           if (wasCapped) {
             const currentScanPath = get().scanPath;
@@ -527,17 +490,6 @@ export const useAppStore = create((set, get) => {
           return;
         }
 
-        // duplicates.start_scan response
-        if (result.status === 'duplicate_scan_started') {
-          set({ duplicatesStatus: 'scanning', duplicatesList: [] });
-          return;
-        }
-
-        // duplicates completed (returned as response)
-        if (result.duplicates !== undefined) {
-          set({ duplicatesList: result.duplicates || [], duplicatesStatus: 'completed' });
-          return;
-        }
 
         // exclusions.list response
         if (result.exclusions !== undefined) {
@@ -552,17 +504,6 @@ export const useAppStore = create((set, get) => {
           return;
         }
 
-        // quarantine.list response
-        if (result.quarantine !== undefined) {
-          set({ quarantineItems: result.quarantine || [] });
-          return;
-        }
-
-        // quarantine.restore response
-        if (result.restored_path !== undefined) {
-          get().fetchQuarantine();
-          return;
-        }
 
         // browser.scan_caches response (array of objects)
         if (Array.isArray(result)) {

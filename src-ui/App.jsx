@@ -4,8 +4,6 @@ import { ShieldAlert, Cpu, AlertTriangle, Loader2 } from 'lucide-react';
 import { useAppStore } from './store/useAppStore';
 import Dashboard from './views/Dashboard';
 import Cleaner from './views/Cleaner';
-import DuplicateFinder from './views/DuplicateFinder';
-import QuarantineView from './views/QuarantineView';
 import SettingsView from './views/Settings';
 import Sidebar from './components/Sidebar';
 import ErrorBoundary from './components/ErrorBoundary';
@@ -148,8 +146,6 @@ export default function App() {
               <Route index element={<Navigate to="/dashboard" replace />} />
               <Route path="dashboard" element={<Dashboard />} />
               <Route path="cleaner" element={<Cleaner />} />
-              <Route path="duplicates" element={<DuplicateFinder />} />
-              <Route path="quarantine" element={<QuarantineView />} />
               <Route path="settings" element={<SettingsView />} />
             </Route>
           </Routes>

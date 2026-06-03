@@ -8,8 +8,7 @@ from socketserver import ThreadingMixIn
 from rpc import RPCDispatcher
 from scanner import ScanningTask
 from delete_engine import DeletionSession
-from duplicates import DuplicateFinder
-from quarantine_manager import quarantine_manager
+
 from browser import browser_cleaner
 from exclusion_engine import exclusion_engine
 from crash_recovery import crash_recovery_manager
@@ -24,7 +23,7 @@ dispatcher = RPCDispatcher()
 # Active Task tracking for cooperative cancellation mechanisms
 active_scan_task = None
 active_delete_task = None
-active_duplicate_task = None
+
 task_lock = threading.Lock()
 
 def rpc_notify(method, params):
@@ -280,27 +279,7 @@ def handle_cancel_delete(params):
             return {"status": "delete_cancelled"}
         return {"status": "no_active_delete"}
 
-@dispatcher.register("duplicates.start_scan")
-def handle_start_duplicates(params):
-    global active_duplicate_task
-    folders = params.get("folders", [])
-    if not folders:
-        raise CleanerError("Missing parameter 'folders' for duplicate lookup.")
 
-    with task_lock:
-        if active_duplicate_task and not active_duplicate_task.cancelled:
-            raise CleanerError("A duplicate scanning sweeps is already actively running.")
-        active_duplicate_task = DuplicateFinder(folders, rpc_notify)
-
-    def run_duplicates():
-        try:
-            res = active_duplicate_task.execute()
-            rpc_notify("duplicates.completed", res)
-        except Exception as e:
-            rpc_notify("duplicates.error", {"message": str(e)})
-
-    threading.Thread(target=run_duplicates, daemon=True).start()
-    return {"status": "duplicate_scan_started"}
 
 @dispatcher.register("browser.scan_caches")
 def handle_browser_scan(params):
@@ -336,28 +315,7 @@ def handle_exclusions_remove(params):
     success = exclusion_engine.remove_custom_exclusion(path)
     return {"success": success}
 
-@dispatcher.register("quarantine.list")
-def handle_quarantine_list(params):
-    rows = db.fetch_all("SELECT quarantine_id, original_name, original_directory, file_size, created_at FROM quarantine WHERE restored_at IS NULL;")
-    items = []
-    for r in rows:
-        items.append({
-            "id": r[0],
-            "name": r[1],
-            "directory": r[2],
-            "size": r[3],
-            "created_at": r[4]
-        })
-    return {"quarantine": items}
 
-@dispatcher.register("quarantine.restore")
-def handle_quarantine_restore(params):
-    qid = params.get("id")
-    custom_dest = params.get("custom_destination")
-    if not qid:
-        raise CleanerError("Missing 'id' parameter for quarantine restoration.")
-    restored_path = quarantine_manager.restore_file(qid, custom_dest)
-    return {"restored_path": restored_path}
 
 @dispatcher.register("system.set_developer_mode")
 def handle_developer_mode(params):

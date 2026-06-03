@@ -10,8 +10,6 @@ export default function Sidebar() {
   const menuItems = [
     { path: '/dashboard', name: 'Dashboard', icon: LayoutDashboard },
     { path: '/cleaner', name: 'Interactive Cleaner', icon: Trash2 },
-    { path: '/duplicates', name: 'Duplicate Finder', icon: Layers },
-    { path: '/quarantine', name: 'Quarantine Board', icon: Archive },
     { path: '/settings', name: 'Settings & Privacy', icon: Settings },
   ];
 

@@ -56,7 +56,7 @@ class ScanningTask:
             "total_size_bytes": self.total_size_bytes
         })
         
-        limit_exceeded = self.scanned_count >= 5000
+        limit_exceeded = self.scanned_count >= 20000
         
         return {
             "status": "completed",
@@ -112,7 +112,7 @@ class ScanningTask:
 
     def _process_file_entry(self, entry):
         """Validates, classifies, and indexes a single filesystem file."""
-        if self.scanned_count >= 5000:
+        if self.scanned_count >= 20000:
             self.cancel()
             return
 
@@ -135,7 +135,7 @@ class ScanningTask:
             }
 
             with self.lock:
-                if self.scanned_count >= 5000:
+                if self.scanned_count >= 20000:
                     self.cancel()
                     return
 

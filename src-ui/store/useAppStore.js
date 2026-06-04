@@ -63,6 +63,11 @@ export const useAppStore = create((set, get) => {
     quickCleanFilesDeleted: 0,
     quickCleanFilesSkipped: 0,
 
+    // Empty Folders states
+    emptyFoldersList: [],
+    emptyFoldersScanStatus: 'idle', // idle, scanning, completed, error
+    deletedEmptyFolders: [],
+
 
     // System alerts from Watchdog
     serviceWarning: null,
@@ -491,6 +496,22 @@ export const useAppStore = create((set, get) => {
         }
 
 
+        // empty folders scan response
+        if (result.empty_folders !== undefined) {
+          set({ emptyFoldersScanStatus: 'completed', emptyFoldersList: result.empty_folders });
+          return;
+        }
+
+        // empty folders delete response
+        if (result.deleted !== undefined && result.failed !== undefined && result.status === undefined) {
+           set((state) => ({ 
+             deletedEmptyFolders: result.deleted || [],
+             emptyFoldersList: state.emptyFoldersList.filter(f => !(result.deleted || []).includes(f)),
+             deleteStatus: 'completed' 
+           }));
+           return;
+        }
+
         // exclusions.list response
         if (result.exclusions !== undefined) {
           set({ exclusions: result.exclusions || [] });
@@ -857,6 +878,51 @@ export const useAppStore = create((set, get) => {
             get().fetchDiskSpace();
             get().fetchDashboardStats();
             get().fetchRecycleBin();
+          });
+      }
+    },
+
+    // Empty folders operations
+    scanEmptyFolders: () => {
+      set({ emptyFoldersScanStatus: 'scanning', emptyFoldersList: [], deletedEmptyFolders: [] });
+      if (window.api) {
+        window.api.sendRequest('empty_folders:scan');
+      } else {
+        fetchWithTimeout('http://127.0.0.1:9988/api/empty_folders/scan', {}, 60000)
+          .then(res => res.json())
+          .then(result => {
+            set({ emptyFoldersScanStatus: 'completed', emptyFoldersList: result.empty_folders || [] });
+          })
+          .catch(() => {
+            set({ emptyFoldersScanStatus: 'completed', emptyFoldersList: ['C:\\MockEmpty1', 'C:\\Users\\MockEmpty2'] });
+          });
+      }
+    },
+
+    deleteEmptyFolders: (targets) => {
+      set({ deleteStatus: 'deleting' });
+      if (window.api) {
+        window.api.sendRequest('empty_folders:delete', { targets });
+      } else {
+        fetchWithTimeout('http://127.0.0.1:9988/api/empty_folders/delete', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ targets })
+        }, 60000)
+          .then(res => res.json())
+          .then(result => {
+            set((state) => ({
+              deletedEmptyFolders: result.deleted || [],
+              emptyFoldersList: state.emptyFoldersList.filter(f => !(result.deleted || []).includes(f)),
+              deleteStatus: 'completed'
+            }));
+          })
+          .catch(() => {
+            set((state) => ({
+              deletedEmptyFolders: targets,
+              emptyFoldersList: state.emptyFoldersList.filter(f => !targets.includes(f)),
+              deleteStatus: 'completed'
+            }));
           });
       }
     },

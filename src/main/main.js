@@ -140,6 +140,13 @@ ipcMain.on('ipc:request', (event, packet) => {
         rpcMethod = 'system.set_developer_mode';
         rpcParams = { enabled: data.enabled };
         break;
+      case 'empty_folders:scan':
+        rpcMethod = 'system.scan_empty_folders';
+        break;
+      case 'empty_folders:delete':
+        rpcMethod = 'system.delete_empty_folders';
+        rpcParams = { targets: data.targets };
+        break;
     }
 
     if (rpcMethod) {

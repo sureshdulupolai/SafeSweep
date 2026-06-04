@@ -498,6 +498,60 @@ def handle_quick_clean(params):
     
     return {"status": "completed", "bytes_freed": bytes_freed, "files_deleted": files_deleted, "files_skipped": files_skipped}
 
+@dispatcher.register("system.scan_empty_folders")
+def handle_scan_empty_folders(params):
+    import os
+    empty_folders = []
+    skip_dirs = {"Windows", "Program Files", "Program Files (x86)", "ProgramData", "AppData", "node_modules", ".git", "$Recycle.Bin", "System Volume Information"}
+    
+    # Ultra-fast iterative scan using os.scandir
+    stack = ["C:\\"]
+    while stack:
+        current_dir = stack.pop()
+        try:
+            with os.scandir(current_dir) as it:
+                is_empty = True
+                for entry in it:
+                    is_empty = False
+                    if entry.is_dir(follow_symlinks=False):
+                        name = entry.name
+                        if name not in skip_dirs and not name.startswith('.'):
+                            stack.append(entry.path)
+                
+                if is_empty and current_dir != "C:\\":
+                    empty_folders.append(current_dir)
+        except Exception:
+            pass # Skip permission errors silently to maintain speed
+            
+    return {"empty_folders": empty_folders}
+
+@dispatcher.register("system.delete_empty_folders")
+def handle_delete_empty_folders(params):
+    import os
+    import concurrent.futures
+    targets = params.get("targets", [])
+    deleted = []
+    failed = []
+    
+    def remove_dir(path):
+        try:
+            os.rmdir(path)
+            return path, True
+        except Exception:
+            return path, False
+
+    # Parallelize deletion for extreme speed
+    with concurrent.futures.ThreadPoolExecutor(max_workers=20) as executor:
+        results = executor.map(remove_dir, targets)
+        
+    for path, success in results:
+        if success:
+            deleted.append(path)
+        else:
+            failed.append(path)
+            
+    return {"deleted": deleted, "failed": failed}
+
 @dispatcher.register("system.shutdown")
 def handle_shutdown(params):
     logger.info("Received sidecar shutdown command. Ending process cleanly.")
@@ -620,6 +674,9 @@ class LocalCleanerHTTPServer(BaseHTTPRequestHandler):
                         res = task.execute()
                         res["files"] = files_list
                         self.write_response(res)
+                elif endpoint == "empty_folders/scan":
+                    res = handle_scan_empty_folders({})
+                    self.write_response(res)
                 else:
                     self.write_response({"error": "endpoint not found"})
             except Exception as e:
@@ -648,6 +705,10 @@ class LocalCleanerHTTPServer(BaseHTTPRequestHandler):
                     
                     session = DeletionSession(targets, permanent, scan_path=scan_path)
                     res = session.execute()
+                    self.write_response(res)
+                elif endpoint == "empty_folders/delete":
+                    targets = data.get("targets", [])
+                    res = handle_delete_empty_folders({"targets": targets})
                     self.write_response(res)
                 else:
                     self.write_response({"error": "endpoint not found"})

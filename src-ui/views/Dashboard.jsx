@@ -1,8 +1,11 @@
 import React, { useEffect, useState } from 'react';
-import { ShieldCheck, HardDrive, RefreshCw, Layers, ShieldAlert, Cpu, Trash2, Loader2, AlertTriangle, X } from 'lucide-react';
+import { ShieldCheck, HardDrive, RefreshCw, Layers, ShieldAlert, Cpu, Trash2, Loader2, AlertTriangle, X, FolderX } from 'lucide-react';
 import { useAppStore } from '../store/useAppStore';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useNavigate } from 'react-router-dom';
+
+import EmptyFolderScanner from '../components/EmptyFolderScanner';
+import SuccessCard from '../components/SuccessCard';
 
 // Pulsing skeleton placeholder block
 function Skeleton({ className = '' }) {
@@ -50,6 +53,19 @@ export default function Dashboard() {
   const [modalState, setModalState] = useState({ isOpen: false, step: 'confirm', targetId: null, label: '', value: '', bytesValue: 0 });
   const [confirmText, setConfirmText] = useState('');
   const [toastMessage, setToastMessage] = useState(null);
+
+  const [isEmptyFolderScannerOpen, setIsEmptyFolderScannerOpen] = useState(false);
+  const [isSuccessCardOpen, setIsSuccessCardOpen] = useState(false);
+
+  const deleteStatus = useAppStore(state => state.deleteStatus);
+  const deletedEmptyFolders = useAppStore(state => state.deletedEmptyFolders);
+
+  useEffect(() => {
+    if (deleteStatus === 'completed' && deletedEmptyFolders.length > 0 && isEmptyFolderScannerOpen) {
+       setIsEmptyFolderScannerOpen(false);
+       setIsSuccessCardOpen(true);
+    }
+  }, [deleteStatus, deletedEmptyFolders, isEmptyFolderScannerOpen]);
 
   useEffect(() => {
     if (quickCleanStatus === 'completed' && modalState.isOpen && modalState.step === 'confirm') {
@@ -596,6 +612,19 @@ export default function Dashboard() {
                   glowColor: 'hover:border-gray-500/30',
                   badgeColor: 'text-gray-400 border-brand-border',
                   clickable: false
+                },
+                {
+                  id: 'empty_folders',
+                  label: 'Empty Folders',
+                  value: 'Scan PC',
+                  rawBytes: 0,
+                  desc: 'Search for zero-byte directories',
+                  icon: FolderX,
+                  color: 'text-brand-rose',
+                  glowColor: 'hover:border-brand-rose/50',
+                  badgeColor: 'text-brand-rose border-brand-rose/30',
+                  clickable: true,
+                  onClick: () => setIsEmptyFolderScannerOpen(true)
                 }
               ].map((stat, idx) => {
                 const isCleaningThis = modalState.targetId === stat.id && quickCleanStatus === 'cleaning';
@@ -610,7 +639,13 @@ export default function Dashboard() {
                 return (
                   <div 
                     key={idx} 
-                    onClick={() => stat.clickable && !showFullLoader && !isCleaningThis && handleCardClick(stat.id, stat.label, stat.value, stat.rawBytes)}
+                    onClick={() => {
+                      if (stat.onClick) {
+                        stat.onClick();
+                      } else if (stat.clickable && !showFullLoader && !isCleaningThis) {
+                        handleCardClick(stat.id, stat.label, stat.value, stat.rawBytes);
+                      }
+                    }}
                     className={`glass-card p-4 flex items-center justify-between border border-brand-border transition-all relative overflow-hidden ${
                       stat.clickable && !showFullLoader && !isCleaningThis
                         ? `cursor-pointer hover:bg-brand-card/80 hover:shadow-lg hover:-translate-y-0.5 group ${stat.glowColor}` 
@@ -675,6 +710,18 @@ export default function Dashboard() {
           </motion.div>
         )}
       </AnimatePresence>
+
+      <EmptyFolderScanner 
+        isOpen={isEmptyFolderScannerOpen} 
+        onClose={() => setIsEmptyFolderScannerOpen(false)} 
+      />
+      <SuccessCard 
+        isOpen={isSuccessCardOpen} 
+        onClose={() => {
+          setIsSuccessCardOpen(false);
+          useAppStore.setState({ deleteStatus: 'idle', deletedEmptyFolders: [] });
+        }} 
+      />
     </motion.div>
   );
 }

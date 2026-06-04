@@ -502,7 +502,7 @@ def handle_quick_clean(params):
 def handle_scan_empty_folders(params):
     import os
     empty_folders = []
-    skip_dirs = {"Windows", "Program Files", "Program Files (x86)", "ProgramData", "AppData", "node_modules", ".git", "$Recycle.Bin", "System Volume Information"}
+    skip_dirs = {"Windows", "Program Files", "Program Files (x86)", "ProgramData", "AppData", "node_modules", ".git", "$Recycle.Bin", "System Volume Information", "Default", "Public", "TEMP", "Intel", "inetpub", "PerfLogs", "Common Files", "Default User", "All Users"}
     
     # Ultra-fast iterative scan using os.scandir
     stack = ["C:\\"]
@@ -519,7 +519,11 @@ def handle_scan_empty_folders(params):
                             stack.append(entry.path)
                 
                 if is_empty and current_dir != "C:\\":
-                    empty_folders.append(current_dir)
+                    # Only include folders we likely have permission to delete
+                    if os.access(current_dir, os.W_OK):
+                        # Final check to avoid hidden windows system sub-paths
+                        if not any(x in current_dir.lower() for x in ['\\windows\\', '\\programdata\\', '\\default\\', '\\public\\', '\\intel\\', '\\inetpub\\']):
+                            empty_folders.append(current_dir)
         except Exception:
             pass # Skip permission errors silently to maintain speed
             

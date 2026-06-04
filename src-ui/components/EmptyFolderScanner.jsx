@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { FolderX, Loader2, Trash2, ShieldAlert, X, CheckSquare, Square } from 'lucide-react';
+import { FolderX, Loader2, Trash2, ShieldAlert, X, CheckSquare, Square, RefreshCw } from 'lucide-react';
 import { useAppStore } from '../store/useAppStore';
 
 export default function EmptyFolderScanner({ isOpen, onClose }) {
@@ -11,6 +11,21 @@ export default function EmptyFolderScanner({ isOpen, onClose }) {
   const deleteStatus = useAppStore(state => state.deleteStatus);
 
   const [selectedPaths, setSelectedPaths] = useState([]);
+  const [reloadCooldown, setReloadCooldown] = useState(0);
+
+  useEffect(() => {
+    let timer;
+    if (reloadCooldown > 0) {
+      timer = setTimeout(() => setReloadCooldown(prev => prev - 1), 1000);
+    }
+    return () => clearTimeout(timer);
+  }, [reloadCooldown]);
+
+  const handleRescan = () => {
+    if (scanStatus === 'scanning' || reloadCooldown > 0 || deleteStatus === 'deleting') return;
+    setReloadCooldown(5);
+    scanEmptyFolders();
+  };
 
   useEffect(() => {
     if (isOpen && scanStatus === 'idle') {
@@ -72,13 +87,33 @@ export default function EmptyFolderScanner({ isOpen, onClose }) {
                 <p className="text-[11px] text-gray-400 mt-0.5">Scanning C:\ drive for zero-byte directories.</p>
               </div>
             </div>
-            <button 
-              onClick={onClose}
-              disabled={deleteStatus === 'deleting'}
-              className="text-gray-500 hover:text-gray-300 transition-colors disabled:opacity-50"
-            >
-              <X className="h-5 w-5" />
-            </button>
+            <div className="flex items-center gap-2">
+              <button 
+                onClick={handleRescan}
+                disabled={scanStatus === 'scanning' || reloadCooldown > 0 || deleteStatus === 'deleting'}
+                className={`p-1.5 rounded-lg border transition-all ${
+                  scanStatus === 'scanning' || reloadCooldown > 0 || deleteStatus === 'deleting'
+                    ? 'border-brand-border bg-brand-dark opacity-50 cursor-not-allowed' 
+                    : 'border-brand-border bg-brand-card hover:bg-brand-accent/10 hover:border-brand-accent/30 hover:text-brand-accent'
+                }`}
+                title="Rescan Drive"
+              >
+                {reloadCooldown > 0 ? (
+                  <span className="h-5 w-5 flex items-center justify-center text-[10px] font-bold text-brand-accent">
+                    {reloadCooldown}s
+                  </span>
+                ) : (
+                  <RefreshCw className={`h-5 w-5 text-gray-400 ${scanStatus === 'scanning' ? 'animate-spin text-brand-accent' : ''}`} />
+                )}
+              </button>
+              <button 
+                onClick={onClose}
+                disabled={deleteStatus === 'deleting'}
+                className="p-1.5 text-gray-500 hover:text-gray-300 transition-colors disabled:opacity-50"
+              >
+                <X className="h-5 w-5" />
+              </button>
+            </div>
           </div>
 
           {/* Body */}

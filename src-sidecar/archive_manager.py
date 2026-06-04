@@ -6,18 +6,28 @@ logger = logging.getLogger(__name__)
 
 ARCHIVE_EXTENSIONS = {'.zip', '.rar', '.7z', '.iso', '.tar', '.gz'}
 
+import string
+from ctypes import windll
+
 def scan_archives():
+    logger.info("[Archive Manager] Starting scan for heavy archives...")
     archives = []
-    user_profile = os.environ.get("USERPROFILE", "C:\\")
     
-    # Target specific user folders to avoid system/app files
-    target_dirs = [
-        os.path.join(user_profile, "Downloads"),
-        os.path.join(user_profile, "Documents"),
-        os.path.join(user_profile, "Desktop")
-    ]
+    # Get all drives
+    target_dirs = []
+    try:
+        bitmask = windll.kernel32.GetLogicalDrives()
+        for letter in string.ascii_uppercase:
+            if bitmask & 1:
+                target_dirs.append(f"{letter}:\\")
+            bitmask >>= 1
+    except Exception:
+        # Fallback to C: if windll fails
+        target_dirs = ["C:\\"]
     
-    def scan_dir_recursive(path):
+    SKIP_DIRS = {'windows', 'program files', 'program files (x86)', 'programdata', '$recycle.bin', 'system volume information', 'appdata', 'node_modules', '.git', 'pkg', '.cargo', 'go'}
+
+    def scan_dir_recursive(path, local_archives):
         try:
             with os.scandir(path) as it:
                 for entry in it:
@@ -25,12 +35,13 @@ def scan_archives():
                         if entry.is_symlink():
                             continue
                         if entry.is_dir():
-                            scan_dir_recursive(entry.path)
+                            if entry.name.lower() not in SKIP_DIRS:
+                                scan_dir_recursive(entry.path, local_archives)
                         elif entry.is_file():
                             ext = os.path.splitext(entry.name)[1].lower()
                             if ext in ARCHIVE_EXTENSIONS:
                                 stat = entry.stat()
-                                archives.append({
+                                local_archives.append({
                                     "path": entry.path,
                                     "name": entry.name,
                                     "size": stat.st_size,
@@ -41,9 +52,39 @@ def scan_archives():
         except Exception:
             pass
 
+    import threading
+    archives_lock = threading.Lock()
+    
+    def process_top_level(path):
+        local_archives = []
+        scan_dir_recursive(path, local_archives)
+        if local_archives:
+            with archives_lock:
+                archives.extend(local_archives)
+
+    top_level_dirs = []
     for d in target_dirs:
-        if os.path.exists(d):
-            scan_dir_recursive(d)
+        try:
+            with os.scandir(d) as it:
+                for entry in it:
+                    if entry.is_dir() and not entry.is_symlink():
+                        if entry.name.lower() not in SKIP_DIRS:
+                            top_level_dirs.append(entry.path)
+                    elif entry.is_file():
+                        ext = os.path.splitext(entry.name)[1].lower()
+                        if ext in ARCHIVE_EXTENSIONS:
+                            stat = entry.stat()
+                            archives.append({
+                                "path": entry.path,
+                                "name": entry.name,
+                                "size": stat.st_size,
+                                "type": ext[1:].upper()
+                            })
+        except Exception:
+            pass
+
+    with concurrent.futures.ThreadPoolExecutor(max_workers=16) as executor:
+        executor.map(process_top_level, top_level_dirs)
             
     # Sort by size descending
     archives.sort(key=lambda x: x["size"], reverse=True)

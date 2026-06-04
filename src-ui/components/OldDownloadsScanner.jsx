@@ -14,7 +14,7 @@ export default function OldDownloadsScanner({ isOpen, onClose }) {
   const [reloadCooldown, setReloadCooldown] = useState(0);
   const [ageFilter, setAgeFilter] = useState(60);
 
-  const filteredList = oldDownloadsList.filter(f => f.age_days >= ageFilter);
+  const filteredList = oldDownloadsList.filter(f => ageFilter === -1 ? f.age_days < 30 : f.age_days >= ageFilter);
 
   useEffect(() => {
     let timer;
@@ -31,10 +31,10 @@ export default function OldDownloadsScanner({ isOpen, onClose }) {
   };
 
   useEffect(() => {
-    if (isOpen && scanStatus === 'idle') {
+    if (isOpen) {
       scanOldDownloads();
     }
-  }, [isOpen, scanStatus, scanOldDownloads]);
+  }, [isOpen, scanOldDownloads]);
 
   useEffect(() => {
     // Select all by default when scan finishes or filter changes
@@ -95,10 +95,25 @@ export default function OldDownloadsScanner({ isOpen, onClose }) {
               </div>
               <div>
                 <h3 className="text-sm font-bold text-gray-200">Old Downloads Waste</h3>
-                <p className="text-[11px] text-gray-400 mt-0.5">Detecting abandoned files older than 60 days in Downloads.</p>
+                <p className="text-[11px] text-gray-400 mt-0.5">Detecting abandoned files older than 30 days in Downloads.</p>
               </div>
             </div>
-            <div className="flex items-center gap-2">
+            <div className="flex items-center gap-4">
+              <div className="flex items-center gap-2 text-xs text-gray-400">
+                <span>Filter:</span>
+                <select 
+                  value={ageFilter} 
+                  onChange={(e) => setAgeFilter(Number(e.target.value))}
+                  className="bg-brand-darkest border border-brand-border rounded px-2 py-0.5 text-xs text-gray-200 focus:outline-none focus:border-purple-500 transition-colors"
+                >
+                  <option value={-1}>&lt; 30 Days Old</option>
+                  <option value={30}>30+ Days Old</option>
+                  <option value={60}>60+ Days Old</option>
+                  <option value={90}>90+ Days Old</option>
+                </select>
+              </div>
+              <div className="h-4 w-px bg-brand-border"></div>
+              <div className="flex items-center gap-2">
               <button 
                 onClick={handleRescan}
                 disabled={scanStatus === 'scanning' || reloadCooldown > 0 || deleteStatus === 'deleting'}
@@ -126,8 +141,9 @@ export default function OldDownloadsScanner({ isOpen, onClose }) {
               </button>
             </div>
           </div>
+        </div>
 
-          {/* Body */}
+        {/* Body */}
           <div className="flex-1 overflow-y-auto p-5 bg-brand-darkest relative">
             {scanStatus === 'scanning' ? (
               <div className="h-full flex flex-col items-center justify-center space-y-4">
@@ -150,15 +166,11 @@ export default function OldDownloadsScanner({ isOpen, onClose }) {
                   <ShieldCheck className="h-6 w-6 text-brand-green" />
                 </div>
                 <h4 className="text-sm font-bold text-gray-200">No Old Downloads Found</h4>
-                <p className="text-xs text-gray-400">Your downloads folder has no files older than {ageFilter} days.</p>
-                {oldDownloadsList.length > 0 && (
-                  <button 
-                    onClick={() => setAgeFilter(30)}
-                    className="mt-2 text-xs text-brand-accent hover:underline"
-                  >
-                    View files older than 30 days instead
-                  </button>
-                )}
+                <p className="text-xs text-gray-400">
+                  {ageFilter === -1 
+                    ? "Your downloads folder has no files newer than 30 days." 
+                    : `Your downloads folder has no files older than ${ageFilter} days.`}
+                </p>
               </div>
             ) : (
               <div className="space-y-4">
@@ -169,19 +181,6 @@ export default function OldDownloadsScanner({ isOpen, onClose }) {
                         {selectedPaths.length === filteredList.length && filteredList.length > 0 ? <CheckSquare className="h-4 w-4 text-purple-400" /> : <Square className="h-4 w-4" />}
                       </button>
                       <span className="text-xs font-semibold text-gray-200">Select All {filteredList.length} Files</span>
-                    </div>
-                    <div className="h-4 w-px bg-brand-border"></div>
-                    <div className="flex items-center gap-2 text-xs text-gray-400">
-                      <span>Age:</span>
-                      <select 
-                        value={ageFilter} 
-                        onChange={(e) => setAgeFilter(Number(e.target.value))}
-                        className="bg-brand-darkest border border-brand-border rounded px-2 py-0.5 text-xs text-gray-200 focus:outline-none focus:border-purple-500 transition-colors"
-                      >
-                        <option value={30}>30+ Days</option>
-                        <option value={60}>60+ Days</option>
-                        <option value={90}>90+ Days</option>
-                      </select>
                     </div>
                   </div>
                   <span className="text-[10px] bg-purple-500/10 text-purple-400 border border-purple-500/30 px-2 py-0.5 rounded font-mono uppercase">

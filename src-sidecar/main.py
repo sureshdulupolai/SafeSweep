@@ -560,6 +560,7 @@ def handle_delete_empty_folders(params):
 def handle_scan_old_downloads(params):
     import os
     import time
+    logger.info("[Old Downloads] Starting scan for abandoned downloads...")
     old_downloads = []
     user_profile = os.environ.get("USERPROFILE", "C:\\")
     downloads_path = os.path.join(user_profile, "Downloads")
@@ -568,22 +569,18 @@ def handle_scan_old_downloads(params):
         return {"old_downloads": []}
         
     current_time = time.time()
-    # 30 days in seconds
-    threshold_seconds = 30 * 24 * 60 * 60
-    
     try:
         with os.scandir(downloads_path) as it:
             for entry in it:
                 if entry.is_file(follow_symlinks=False):
                     stat = entry.stat()
-                    if current_time - stat.st_mtime > threshold_seconds:
-                        age_days = int((current_time - stat.st_mtime) / (24*3600))
-                        old_downloads.append({
-                            "path": entry.path,
-                            "name": entry.name,
-                            "size": stat.st_size,
-                            "age_days": age_days
-                        })
+                    age_days = int((current_time - stat.st_mtime) / (24*3600))
+                    old_downloads.append({
+                        "path": entry.path,
+                        "name": entry.name,
+                        "size": stat.st_size,
+                        "age_days": max(0, age_days)
+                    })
     except Exception as e:
         logger.error(f"Error scanning old downloads: {e}")
         

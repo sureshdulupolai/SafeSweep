@@ -39,6 +39,12 @@ export const useAppStore = create((set, get) => {
       if (window.api) window.api.sendRequest('exclusions:list');
     },
 
+    // Quarantine state
+    quarantineItems: [],
+    fetchQuarantine: () => {
+      if (window.api) window.api.sendRequest('quarantine:list');
+    },
+
     // Scan progress statuses
     scanPath: '',
     scanStatus: 'idle', // idle, scanning, completed, cancelled
@@ -1062,7 +1068,7 @@ export const useAppStore = create((set, get) => {
       if (window.api) {
         window.api.sendRequest('archives:scan');
       } else {
-        fetchWithTimeout('http://127.0.0.1:9988/api/archives/scan', {}, 60000)
+        fetchWithTimeout('http://127.0.0.1:9988/api/archives/scan', {}, 600000)
           .then(res => res.json())
           .then(result => {
             set({ archivesScanStatus: 'completed', archivesList: result.archives || [] });
@@ -1091,6 +1097,10 @@ export const useAppStore = create((set, get) => {
               archivesList: state.archivesList.filter(f => !(result.deleted || []).includes(f.path)),
               deleteStatus: 'completed'
             }));
+            if (result.failed && result.failed.length > 0) {
+              get().setServiceWarning(`${result.failed.length} protected archives were kept safe and not deleted.`);
+              setTimeout(() => get().setServiceWarning(''), 6000);
+            }
           })
           .catch(() => {
             set({ deleteStatus: 'idle' });

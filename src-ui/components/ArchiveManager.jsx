@@ -12,6 +12,17 @@ export default function ArchiveManager({ isOpen, onClose }) {
 
   const [selectedPaths, setSelectedPaths] = useState([]);
   const [reloadCooldown, setReloadCooldown] = useState(0);
+  const [showLongScanMsg, setShowLongScanMsg] = useState(false);
+
+  useEffect(() => {
+    let timer;
+    if (scanStatus === 'scanning') {
+      timer = setTimeout(() => setShowLongScanMsg(true), 4000);
+    } else {
+      setShowLongScanMsg(false);
+    }
+    return () => clearTimeout(timer);
+  }, [scanStatus]);
 
   useEffect(() => {
     let timer;
@@ -28,10 +39,10 @@ export default function ArchiveManager({ isOpen, onClose }) {
   };
 
   useEffect(() => {
-    if (isOpen && scanStatus === 'idle') {
+    if (isOpen) {
       scanArchives();
     }
-  }, [isOpen, scanStatus, scanArchives]);
+  }, [isOpen, scanArchives]);
 
   useEffect(() => {
     // Select all by default when scan finishes
@@ -92,7 +103,7 @@ export default function ArchiveManager({ isOpen, onClose }) {
               </div>
               <div>
                 <h3 className="text-sm font-bold text-gray-200">Archive Manager</h3>
-                <p className="text-[11px] text-gray-400 mt-0.5">Detecting large ZIP, RAR, 7Z, and ISO files in your user folders.</p>
+                <p className="text-[11px] text-gray-400 mt-0.5">Detecting ZIP, RAR, 7Z, and ISO files across your entire PC.</p>
               </div>
             </div>
             <div className="flex items-center gap-2">
@@ -104,7 +115,7 @@ export default function ArchiveManager({ isOpen, onClose }) {
                     ? 'border-brand-border bg-brand-dark opacity-50 cursor-not-allowed' 
                     : 'border-brand-border bg-brand-card hover:bg-brand-amber/10 hover:border-brand-amber/30 hover:text-brand-amber'
                 }`}
-                title="Rescan Folders"
+                title="Rescan PC"
               >
                 {reloadCooldown > 0 ? (
                   <span className="h-5 w-5 flex items-center justify-center text-[10px] font-bold text-brand-amber">
@@ -137,8 +148,13 @@ export default function ArchiveManager({ isOpen, onClose }) {
                   <Archive className="h-8 w-8 text-brand-amber animate-pulse" />
                 </div>
                 <div className="text-center">
-                  <h4 className="text-sm font-bold text-gray-200 mb-1">Scanning User Folders</h4>
-                  <p className="text-xs text-gray-400">Searching Downloads, Documents, and Desktop for heavy archives...</p>
+                  <h4 className="text-sm font-bold text-gray-200 mb-1">Scanning Entire PC</h4>
+                  <p className="text-xs text-gray-400">Searching all logical drives for archives... This may take a while.</p>
+                  {showLongScanMsg && (
+                    <motion.div initial={{opacity:0}} animate={{opacity:1}} className="mt-4 p-2 bg-brand-amber/10 border border-brand-amber/30 rounded text-[11px] text-brand-amber max-w-sm">
+                      Your PC has a large number of files. Please wait while we safely scan them...
+                    </motion.div>
+                  )}
                 </div>
               </div>
             ) : scanStatus === 'completed' && archivesList.length === 0 ? (

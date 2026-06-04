@@ -659,9 +659,9 @@ export default function Dashboard() {
                 {
                   id: 'archives',
                   label: 'Archive Manager',
-                  value: 'Scan User',
+                  value: 'Scan PC',
                   rawBytes: 0,
-                  desc: 'Large ZIP/RAR/ISO files',
+                  desc: 'All ZIP/RAR/ISO files',
                   icon: FileArchive,
                   color: 'text-brand-amber',
                   glowColor: 'hover:border-brand-amber/50',
@@ -698,7 +698,7 @@ export default function Dashboard() {
                 {
                   id: 'old_downloads',
                   label: 'Old Downloads',
-                  value: 'Scan 60+ Days',
+                  value: 'Scan Downloads',
                   rawBytes: 0,
                   desc: 'Detect abandoned files',
                   icon: DownloadCloud,

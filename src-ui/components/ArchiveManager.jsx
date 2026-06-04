@@ -1,20 +1,17 @@
 import React, { useEffect, useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { DownloadCloud, Loader2, Trash2, ShieldAlert, ShieldCheck, X, CheckSquare, Square, RefreshCw, CalendarOff } from 'lucide-react';
+import { FileArchive, Loader2, Trash2, ShieldAlert, X, CheckSquare, Square, RefreshCw, Archive } from 'lucide-react';
 import { useAppStore } from '../store/useAppStore';
 
-export default function OldDownloadsScanner({ isOpen, onClose }) {
-  const scanOldDownloads = useAppStore(state => state.scanOldDownloads);
-  const oldDownloadsList = useAppStore(state => state.oldDownloadsList);
-  const scanStatus = useAppStore(state => state.oldDownloadsScanStatus);
-  const deleteOldDownloads = useAppStore(state => state.deleteOldDownloads);
+export default function ArchiveManager({ isOpen, onClose }) {
+  const scanArchives = useAppStore(state => state.scanArchives);
+  const archivesList = useAppStore(state => state.archivesList);
+  const scanStatus = useAppStore(state => state.archivesScanStatus);
+  const deleteArchives = useAppStore(state => state.deleteArchives);
   const deleteStatus = useAppStore(state => state.deleteStatus);
 
   const [selectedPaths, setSelectedPaths] = useState([]);
   const [reloadCooldown, setReloadCooldown] = useState(0);
-  const [ageFilter, setAgeFilter] = useState(60);
-
-  const filteredList = oldDownloadsList.filter(f => f.age_days >= ageFilter);
 
   useEffect(() => {
     let timer;
@@ -27,27 +24,27 @@ export default function OldDownloadsScanner({ isOpen, onClose }) {
   const handleRescan = () => {
     if (scanStatus === 'scanning' || reloadCooldown > 0 || deleteStatus === 'deleting') return;
     setReloadCooldown(5);
-    scanOldDownloads();
+    scanArchives();
   };
 
   useEffect(() => {
     if (isOpen && scanStatus === 'idle') {
-      scanOldDownloads();
+      scanArchives();
     }
-  }, [isOpen, scanStatus, scanOldDownloads]);
+  }, [isOpen, scanStatus, scanArchives]);
 
   useEffect(() => {
-    // Select all by default when scan finishes or filter changes
+    // Select all by default when scan finishes
     if (scanStatus === 'completed') {
-      setSelectedPaths(filteredList.map(f => f.path));
+      setSelectedPaths(archivesList.map(f => f.path));
     }
-  }, [scanStatus, oldDownloadsList, ageFilter]);
+  }, [scanStatus, archivesList]);
 
   const handleToggleAll = () => {
-    if (selectedPaths.length === filteredList.length) {
+    if (selectedPaths.length === archivesList.length) {
       setSelectedPaths([]);
     } else {
-      setSelectedPaths(filteredList.map(f => f.path));
+      setSelectedPaths(archivesList.map(f => f.path));
     }
   };
 
@@ -59,7 +56,7 @@ export default function OldDownloadsScanner({ isOpen, onClose }) {
 
   const handleDelete = () => {
     if (selectedPaths.length > 0) {
-      deleteOldDownloads(selectedPaths);
+      deleteArchives(selectedPaths);
     }
   };
 
@@ -90,12 +87,12 @@ export default function OldDownloadsScanner({ isOpen, onClose }) {
           {/* Header */}
           <div className="bg-brand-card/80 border-b border-brand-border p-4 flex items-center justify-between">
             <div className="flex items-center gap-3">
-              <div className="bg-purple-500/20 p-2 rounded-full">
-                <DownloadCloud className="h-5 w-5 text-purple-400" />
+              <div className="bg-brand-amber/20 p-2 rounded-full">
+                <FileArchive className="h-5 w-5 text-brand-amber" />
               </div>
               <div>
-                <h3 className="text-sm font-bold text-gray-200">Old Downloads Waste</h3>
-                <p className="text-[11px] text-gray-400 mt-0.5">Detecting abandoned files older than 60 days in Downloads.</p>
+                <h3 className="text-sm font-bold text-gray-200">Archive Manager</h3>
+                <p className="text-[11px] text-gray-400 mt-0.5">Detecting large ZIP, RAR, 7Z, and ISO files in your user folders.</p>
               </div>
             </div>
             <div className="flex items-center gap-2">
@@ -105,16 +102,16 @@ export default function OldDownloadsScanner({ isOpen, onClose }) {
                 className={`p-1.5 rounded-lg border transition-all ${
                   scanStatus === 'scanning' || reloadCooldown > 0 || deleteStatus === 'deleting'
                     ? 'border-brand-border bg-brand-dark opacity-50 cursor-not-allowed' 
-                    : 'border-brand-border bg-brand-card hover:bg-purple-500/10 hover:border-purple-500/30 hover:text-purple-400'
+                    : 'border-brand-border bg-brand-card hover:bg-brand-amber/10 hover:border-brand-amber/30 hover:text-brand-amber'
                 }`}
-                title="Rescan Downloads"
+                title="Rescan Folders"
               >
                 {reloadCooldown > 0 ? (
-                  <span className="h-5 w-5 flex items-center justify-center text-[10px] font-bold text-purple-400">
+                  <span className="h-5 w-5 flex items-center justify-center text-[10px] font-bold text-brand-amber">
                     {reloadCooldown}s
                   </span>
                 ) : (
-                  <RefreshCw className={`h-5 w-5 text-gray-400 ${scanStatus === 'scanning' ? 'animate-spin text-purple-400' : ''}`} />
+                  <RefreshCw className={`h-5 w-5 text-gray-400 ${scanStatus === 'scanning' ? 'animate-spin text-brand-amber' : ''}`} />
                 )}
               </button>
               <button 
@@ -135,63 +132,40 @@ export default function OldDownloadsScanner({ isOpen, onClose }) {
                   <motion.div
                     animate={{ rotate: 360 }}
                     transition={{ repeat: Infinity, duration: 2, ease: "linear" }}
-                    className="absolute inset-0 rounded-full border-t-2 border-r-2 border-purple-500 border-opacity-70"
+                    className="absolute inset-0 rounded-full border-t-2 border-r-2 border-brand-amber border-opacity-70"
                   />
-                  <CalendarOff className="h-8 w-8 text-purple-400 animate-pulse" />
+                  <Archive className="h-8 w-8 text-brand-amber animate-pulse" />
                 </div>
                 <div className="text-center">
-                  <h4 className="text-sm font-bold text-gray-200 mb-1">Scanning Downloads Folder</h4>
-                  <p className="text-xs text-gray-400">Searching for forgotten files untouched in 30+ days...</p>
+                  <h4 className="text-sm font-bold text-gray-200 mb-1">Scanning User Folders</h4>
+                  <p className="text-xs text-gray-400">Searching Downloads, Documents, and Desktop for heavy archives...</p>
                 </div>
               </div>
-            ) : scanStatus === 'completed' && filteredList.length === 0 ? (
+            ) : scanStatus === 'completed' && archivesList.length === 0 ? (
               <div className="h-full flex flex-col items-center justify-center space-y-3 text-center">
                 <div className="bg-brand-green/10 p-3 rounded-full mb-2">
-                  <ShieldCheck className="h-6 w-6 text-brand-green" />
+                  <FileArchive className="h-6 w-6 text-brand-green" />
                 </div>
-                <h4 className="text-sm font-bold text-gray-200">No Old Downloads Found</h4>
-                <p className="text-xs text-gray-400">Your downloads folder has no files older than {ageFilter} days.</p>
-                {oldDownloadsList.length > 0 && (
-                  <button 
-                    onClick={() => setAgeFilter(30)}
-                    className="mt-2 text-xs text-brand-accent hover:underline"
-                  >
-                    View files older than 30 days instead
-                  </button>
-                )}
+                <h4 className="text-sm font-bold text-gray-200">No Archives Found</h4>
+                <p className="text-xs text-gray-400">We couldn't find any large ZIP or ISO files hoarding your storage.</p>
               </div>
             ) : (
               <div className="space-y-4">
                 <div className="flex items-center justify-between bg-brand-card p-3 rounded-lg border border-brand-border">
-                  <div className="flex items-center gap-4">
-                    <div className="flex items-center gap-2">
-                      <button onClick={handleToggleAll} className="text-gray-400 hover:text-purple-400 transition-colors">
-                        {selectedPaths.length === filteredList.length && filteredList.length > 0 ? <CheckSquare className="h-4 w-4 text-purple-400" /> : <Square className="h-4 w-4" />}
-                      </button>
-                      <span className="text-xs font-semibold text-gray-200">Select All {filteredList.length} Files</span>
-                    </div>
-                    <div className="h-4 w-px bg-brand-border"></div>
-                    <div className="flex items-center gap-2 text-xs text-gray-400">
-                      <span>Age:</span>
-                      <select 
-                        value={ageFilter} 
-                        onChange={(e) => setAgeFilter(Number(e.target.value))}
-                        className="bg-brand-darkest border border-brand-border rounded px-2 py-0.5 text-xs text-gray-200 focus:outline-none focus:border-purple-500 transition-colors"
-                      >
-                        <option value={30}>30+ Days</option>
-                        <option value={60}>60+ Days</option>
-                        <option value={90}>90+ Days</option>
-                      </select>
-                    </div>
+                  <div className="flex items-center gap-2">
+                    <button onClick={handleToggleAll} className="text-gray-400 hover:text-brand-amber transition-colors">
+                      {selectedPaths.length === archivesList.length ? <CheckSquare className="h-4 w-4 text-brand-amber" /> : <Square className="h-4 w-4" />}
+                    </button>
+                    <span className="text-xs font-semibold text-gray-200">Select All {archivesList.length} Archives</span>
                   </div>
-                  <span className="text-[10px] bg-purple-500/10 text-purple-400 border border-purple-500/30 px-2 py-0.5 rounded font-mono uppercase">
+                  <span className="text-[10px] bg-brand-amber/10 text-brand-amber border border-brand-amber/30 px-2 py-0.5 rounded font-mono uppercase">
                     {selectedPaths.length} Selected
                   </span>
                 </div>
 
                 <div className="border border-brand-border rounded-lg overflow-hidden bg-brand-card/50">
                   <div className="max-h-[55vh] overflow-y-auto p-1">
-                    {filteredList.map((file, idx) => (
+                    {archivesList.map((file, idx) => (
                       <div 
                         key={idx} 
                         onClick={() => handleTogglePath(file.path)}
@@ -199,18 +173,22 @@ export default function OldDownloadsScanner({ isOpen, onClose }) {
                       >
                         <div className="flex items-center gap-3 overflow-hidden">
                           <div className="text-gray-400">
-                            {selectedPaths.includes(file.path) ? <CheckSquare className="h-4 w-4 text-purple-400" /> : <Square className="h-4 w-4" />}
+                            {selectedPaths.includes(file.path) ? <CheckSquare className="h-4 w-4 text-brand-amber" /> : <Square className="h-4 w-4" />}
                           </div>
                           <div className="flex-1 overflow-hidden flex flex-col">
-                            <span className="text-xs text-gray-200 font-medium truncate block" title={file.name}>{file.name}</span>
-                            <span className="text-[10px] text-gray-500 truncate block mt-0.5">{file.path}</span>
+                            <div className="flex items-center gap-2">
+                              <span className="text-[10px] font-bold bg-brand-dark px-1.5 py-0.5 rounded border border-brand-border text-brand-amber">
+                                {file.type}
+                              </span>
+                              <span className="text-xs text-gray-200 font-medium truncate block" title={file.name}>{file.name}</span>
+                            </div>
+                            <span className="text-[10px] text-gray-500 truncate block mt-1">{file.path}</span>
                           </div>
                         </div>
                         
                         <div className="flex items-center gap-4 text-right flex-shrink-0 mr-2">
                           <div className="flex flex-col items-end">
-                            <span className="text-xs font-mono text-gray-300">{formatBytes(file.size)}</span>
-                            <span className="text-[10px] text-brand-rose">{file.age_days} days old</span>
+                            <span className="text-xs font-mono font-bold text-gray-200">{formatBytes(file.size)}</span>
                           </div>
                         </div>
                       </div>
@@ -249,7 +227,7 @@ export default function OldDownloadsScanner({ isOpen, onClose }) {
                  ) : (
                    <>
                      <Trash2 className="h-4 w-4" />
-                     Delete Old Files
+                     Delete Archives
                    </>
                  )}
                </button>

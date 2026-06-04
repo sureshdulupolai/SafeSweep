@@ -154,6 +154,20 @@ ipcMain.on('ipc:request', (event, packet) => {
         rpcMethod = 'system.delete_old_downloads';
         rpcParams = { targets: data.targets };
         break;
+      case 'services:get':
+        rpcMethod = 'system.get_services';
+        break;
+      case 'services:toggle':
+        rpcMethod = 'system.toggle_service';
+        rpcParams = { name: data.name, action: data.action };
+        break;
+      case 'archives:scan':
+        rpcMethod = 'system.scan_archives';
+        break;
+      case 'archives:delete':
+        rpcMethod = 'system.delete_archives';
+        rpcParams = { targets: data.targets };
+        break;
     }
 
     if (rpcMethod) {

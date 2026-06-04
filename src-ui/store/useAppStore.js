@@ -74,6 +74,16 @@ export const useAppStore = create((set, get) => {
     deletedOldDownloads: [],
     oldDownloadsBytesFreed: 0,
 
+    // Services Advisor states
+    servicesList: [],
+    servicesScanStatus: 'idle',
+
+    // Archive Manager states
+    archivesList: [],
+    archivesScanStatus: 'idle',
+    deletedArchives: [],
+    archivesBytesFreed: 0,
+
 
     // System alerts from Watchdog
     serviceWarning: null,
@@ -525,14 +535,32 @@ export const useAppStore = create((set, get) => {
         }
 
         // old downloads delete response
-        if (result.deleted !== undefined && result.failed !== undefined && result.total_freed !== undefined) {
+        if (result.deleted !== undefined && result.failed !== undefined && result.total_freed !== undefined && get().deleteStatus !== 'idle') {
            set((state) => ({ 
              deletedOldDownloads: result.deleted || [],
              oldDownloadsBytesFreed: result.total_freed || 0,
              oldDownloadsList: state.oldDownloadsList.filter(f => !(result.deleted || []).includes(f.path)),
+             
+             // Same response is used for Archives
+             deletedArchives: result.deleted || [],
+             archivesBytesFreed: result.total_freed || 0,
+             archivesList: state.archivesList.filter(f => !(result.deleted || []).includes(f.path)),
+             
              deleteStatus: 'completed' 
            }));
            return;
+        }
+
+        // services get response
+        if (result.services !== undefined) {
+          set({ servicesScanStatus: 'completed', servicesList: result.services });
+          return;
+        }
+
+        // archives get response
+        if (result.archives !== undefined) {
+          set({ archivesScanStatus: 'completed', archivesList: result.archives });
+          return;
         }
 
         // exclusions.list response
@@ -983,6 +1011,84 @@ export const useAppStore = create((set, get) => {
               deletedOldDownloads: result.deleted || [],
               oldDownloadsBytesFreed: result.total_freed || 0,
               oldDownloadsList: state.oldDownloadsList.filter(f => !(result.deleted || []).includes(f.path)),
+              deleteStatus: 'completed'
+            }));
+          })
+          .catch(() => {
+            set({ deleteStatus: 'idle' });
+          });
+      }
+    },
+
+    // Services Advisor operations
+    fetchServices: () => {
+      set({ servicesScanStatus: 'scanning' });
+      if (window.api) {
+        window.api.sendRequest('services:get');
+      } else {
+        fetchWithTimeout('http://127.0.0.1:9988/api/services/get', {}, 30000)
+          .then(res => res.json())
+          .then(result => {
+            set({ servicesScanStatus: 'completed', servicesList: result.services || [] });
+          })
+          .catch(() => {
+            set({ servicesScanStatus: 'error' });
+          });
+      }
+    },
+
+    toggleService: async (name, action) => {
+      try {
+        const res = await fetchWithTimeout('http://127.0.0.1:9988/api/services/toggle', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ name, action })
+        }, 15000);
+        const result = await res.json();
+        if (result.success) {
+          get().fetchServices();
+          return { success: true };
+        } else {
+          return { success: false, error: result.error || 'Failed to toggle service' };
+        }
+      } catch (err) {
+        return { success: false, error: err.message };
+      }
+    },
+
+    // Archive Manager operations
+    scanArchives: () => {
+      set({ archivesScanStatus: 'scanning', archivesList: [], deletedArchives: [], archivesBytesFreed: 0 });
+      if (window.api) {
+        window.api.sendRequest('archives:scan');
+      } else {
+        fetchWithTimeout('http://127.0.0.1:9988/api/archives/scan', {}, 60000)
+          .then(res => res.json())
+          .then(result => {
+            set({ archivesScanStatus: 'completed', archivesList: result.archives || [] });
+          })
+          .catch(() => {
+            set({ archivesScanStatus: 'error' });
+          });
+      }
+    },
+
+    deleteArchives: (targets) => {
+      set({ deleteStatus: 'deleting' });
+      if (window.api) {
+        window.api.sendRequest('archives:delete', { targets });
+      } else {
+        fetchWithTimeout('http://127.0.0.1:9988/api/archives/delete', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ targets })
+        }, 120000)
+          .then(res => res.json())
+          .then(result => {
+            set((state) => ({
+              deletedArchives: result.deleted || [],
+              archivesBytesFreed: result.total_freed || 0,
+              archivesList: state.archivesList.filter(f => !(result.deleted || []).includes(f.path)),
               deleteStatus: 'completed'
             }));
           })

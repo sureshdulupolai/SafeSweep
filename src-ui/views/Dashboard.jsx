@@ -1,11 +1,13 @@
 import React, { useEffect, useState } from 'react';
-import { ShieldCheck, HardDrive, RefreshCw, Layers, ShieldAlert, Cpu, Trash2, Loader2, AlertTriangle, X, FolderX, DownloadCloud } from 'lucide-react';
+import { ShieldCheck, HardDrive, RefreshCw, Layers, ShieldAlert, Cpu, Trash2, Loader2, AlertTriangle, X, FolderX, DownloadCloud, Activity, FileArchive } from 'lucide-react';
 import { useAppStore } from '../store/useAppStore';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useNavigate } from 'react-router-dom';
 
 import EmptyFolderScanner from '../components/EmptyFolderScanner';
 import OldDownloadsScanner from '../components/OldDownloadsScanner';
+import BackgroundServiceAdvisor from '../components/BackgroundServiceAdvisor';
+import ArchiveManager from '../components/ArchiveManager';
 import SuccessCard from '../components/SuccessCard';
 
 // Pulsing skeleton placeholder block
@@ -57,6 +59,8 @@ export default function Dashboard() {
 
   const [isEmptyFolderScannerOpen, setIsEmptyFolderScannerOpen] = useState(false);
   const [isOldDownloadsScannerOpen, setIsOldDownloadsScannerOpen] = useState(false);
+  const [isServicesAdvisorOpen, setIsServicesAdvisorOpen] = useState(false);
+  const [isArchiveManagerOpen, setIsArchiveManagerOpen] = useState(false);
   const [isSuccessCardOpen, setIsSuccessCardOpen] = useState(false);
   const [successCardProps, setSuccessCardProps] = useState({});
 
@@ -64,6 +68,8 @@ export default function Dashboard() {
   const deletedEmptyFolders = useAppStore(state => state.deletedEmptyFolders);
   const deletedOldDownloads = useAppStore(state => state.deletedOldDownloads);
   const oldDownloadsBytesFreed = useAppStore(state => state.oldDownloadsBytesFreed);
+  const deletedArchives = useAppStore(state => state.deletedArchives);
+  const archivesBytesFreed = useAppStore(state => state.archivesBytesFreed);
 
   useEffect(() => {
     if (deleteStatus === 'completed') {
@@ -89,9 +95,20 @@ export default function Dashboard() {
            deletedList: deletedOldDownloads
          });
          setIsSuccessCardOpen(true);
+      } else if (isArchiveManagerOpen && deletedArchives.length > 0) {
+         setIsArchiveManagerOpen(false);
+         setSuccessCardProps({
+           title: "Archives Cleaned",
+           subtitle: "Heavy Archives Permanently Eradicated",
+           itemsLabel: "Archives Deleted",
+           freedBytes: archivesBytesFreed,
+           freedLabel: "Storage Freed",
+           deletedList: deletedArchives
+         });
+         setIsSuccessCardOpen(true);
       }
     }
-  }, [deleteStatus, deletedEmptyFolders, isEmptyFolderScannerOpen, isOldDownloadsScannerOpen, deletedOldDownloads, oldDownloadsBytesFreed]);
+  }, [deleteStatus, deletedEmptyFolders, isEmptyFolderScannerOpen, isOldDownloadsScannerOpen, deletedOldDownloads, oldDownloadsBytesFreed, isArchiveManagerOpen, deletedArchives, archivesBytesFreed]);
 
   useEffect(() => {
     if (quickCleanStatus === 'completed' && modalState.isOpen && modalState.step === 'confirm') {
@@ -640,6 +657,32 @@ export default function Dashboard() {
                   clickable: false
                 },
                 {
+                  id: 'archives',
+                  label: 'Archive Manager',
+                  value: 'Scan User',
+                  rawBytes: 0,
+                  desc: 'Large ZIP/RAR/ISO files',
+                  icon: FileArchive,
+                  color: 'text-brand-amber',
+                  glowColor: 'hover:border-brand-amber/50',
+                  badgeColor: 'text-brand-amber border-brand-amber/30',
+                  clickable: true,
+                  onClick: () => setIsArchiveManagerOpen(true)
+                },
+                {
+                  id: 'services',
+                  label: 'Background Services',
+                  value: 'Analyze System',
+                  rawBytes: 0,
+                  desc: 'Detect bloatware/telemetry',
+                  icon: Activity,
+                  color: 'text-brand-accent',
+                  glowColor: 'hover:border-brand-accent/50',
+                  badgeColor: 'text-brand-accent border-brand-accent/30',
+                  clickable: true,
+                  onClick: () => setIsServicesAdvisorOpen(true)
+                },
+                {
                   id: 'empty_folders',
                   label: 'Empty Folders',
                   value: 'Scan PC',
@@ -758,11 +801,19 @@ export default function Dashboard() {
         isOpen={isOldDownloadsScannerOpen} 
         onClose={() => setIsOldDownloadsScannerOpen(false)} 
       />
+      <BackgroundServiceAdvisor 
+        isOpen={isServicesAdvisorOpen} 
+        onClose={() => setIsServicesAdvisorOpen(false)} 
+      />
+      <ArchiveManager 
+        isOpen={isArchiveManagerOpen} 
+        onClose={() => setIsArchiveManagerOpen(false)} 
+      />
       <SuccessCard 
         isOpen={isSuccessCardOpen} 
         onClose={() => {
           setIsSuccessCardOpen(false);
-          useAppStore.setState({ deleteStatus: 'idle', deletedEmptyFolders: [], deletedOldDownloads: [], oldDownloadsBytesFreed: 0 });
+          useAppStore.setState({ deleteStatus: 'idle', deletedEmptyFolders: [], deletedOldDownloads: [], oldDownloadsBytesFreed: 0, deletedArchives: [], archivesBytesFreed: 0 });
         }} 
         {...successCardProps}
       />

@@ -568,8 +568,8 @@ def handle_scan_old_downloads(params):
         return {"old_downloads": []}
         
     current_time = time.time()
-    # 60 days in seconds
-    threshold_seconds = 60 * 24 * 60 * 60
+    # 30 days in seconds
+    threshold_seconds = 30 * 24 * 60 * 60
     
     try:
         with os.scandir(downloads_path) as it:
@@ -617,6 +617,29 @@ def handle_delete_old_downloads(params):
             failed.append(path)
             
     return {"deleted": deleted, "failed": failed, "total_freed": total_freed}
+
+from services_advisor import get_services_info, change_service_status
+
+@dispatcher.register("system.get_services")
+def handle_get_services(params):
+    return {"services": get_services_info()}
+
+@dispatcher.register("system.toggle_service")
+def handle_toggle_service(params):
+    name = params.get("name")
+    action = params.get("action")
+    return change_service_status(name, action)
+
+from archive_manager import scan_archives, delete_archives
+
+@dispatcher.register("system.scan_archives")
+def handle_scan_archives(params):
+    return {"archives": scan_archives()}
+
+@dispatcher.register("system.delete_archives")
+def handle_delete_archives(params):
+    targets = params.get("targets", [])
+    return delete_archives(targets)
 
 @dispatcher.register("system.shutdown")
 def handle_shutdown(params):
@@ -746,6 +769,12 @@ class LocalCleanerHTTPServer(BaseHTTPRequestHandler):
                 elif endpoint == "old_downloads/scan":
                     res = handle_scan_old_downloads({})
                     self.write_response(res)
+                elif endpoint == "services/get":
+                    res = handle_get_services({})
+                    self.write_response(res)
+                elif endpoint == "archives/scan":
+                    res = handle_scan_archives({})
+                    self.write_response(res)
                 else:
                     self.write_response({"error": "endpoint not found"})
             except Exception as e:
@@ -782,6 +811,15 @@ class LocalCleanerHTTPServer(BaseHTTPRequestHandler):
                 elif endpoint == "old_downloads/delete":
                     targets = data.get("targets", [])
                     res = handle_delete_old_downloads({"targets": targets})
+                    self.write_response(res)
+                elif endpoint == "services/toggle":
+                    name = data.get("name")
+                    action = data.get("action")
+                    res = handle_toggle_service({"name": name, "action": action})
+                    self.write_response(res)
+                elif endpoint == "archives/delete":
+                    targets = data.get("targets", [])
+                    res = handle_delete_archives({"targets": targets})
                     self.write_response(res)
                 else:
                     self.write_response({"error": "endpoint not found"})

@@ -2,101 +2,100 @@
 
 A premium, production-grade, **100% offline, privacy-first, and zero-telemetry** Windows desktop utility designed for system maintenance, temporary cache scanning, duplicate sweeps, and secure file unlinking. 
 
-The application is engineered like a premium utility (modeled after Raycast, Linear, and Notion) focusing on **user safety, reversibility, and absolute predictability** rather than automated "one-click optimization."
+The application is engineered like a premium utility focusing on **user safety, reversibility, and absolute predictability** rather than automated "one-click optimization."
 
 ---
 
-## Key Features
+## 🏗️ System Architecture & Codebase Structure
 
-### 🛡️ Safety Middleware & Protection Engine
-* **Non-Bypassable Gateway:** Central safety module verifies all scanned paths, locks, extensions, and junctions before any filesystem calls are processed.
-- **Protected Path Engine**: Immediate read-only enforcement on sensitive Windows folders (`C:\Windows`, `System32`), cloud folders (`OneDrive`), Program Files, and AppData directories.
-* **WSL & Subsystem Shields:** Explicit exclusions mapping to bypass virtual machine drives (`ext4.vhdx`) and active WSL mounts (`\\wsl$`).
+The project follows a robust, multi-layered architecture utilizing web technologies for the interface and Python for native system operations.
 
-### 💿 Real-Time Dynamic Dashboard Analytics
-- **Natively Polled C:\ Drive**: Shows the real physical NTFS disk capacity and free space dynamically using native Win32 `GetDiskFreeSpaceExW` bindings.
-- **Asynchronous Stats Caching**: Runs deep directory walks for **Temporary Files** and **Browser Caches** in a background daemon thread on startup. No mocked placeholder gigabytes are used.
-- **Dynamic Size & Count Reporting**: Displays real computed sizes and total file counts for the Recycle Bin, temporary folders (`%TEMP%`, `C:\Windows\Temp`, `Prefetch`), and web browsers (Chrome, Edge, Brave, Firefox).
+### 1. Frontend (`src-ui/`) - React + Vite + TailwindCSS
+The user interface is built using modern React, styled with TailwindCSS, animated with Framer Motion, and state-managed by Zustand (`src-ui/store/useAppStore.js`).
 
-### 📦 Target Directory presets & Scanner
-- **Dynamic Defaults**: Initializes target paths dynamically to the user's active Windows Downloads folder on startup.
-- **Quick-Preset Chips**: Allows one-click switching of target scan directories:
-  - 📂 Downloads Folder
-  - 🖥️ Desktop Folder
-  - 💿 C:\ System Drive
-- **Drag-and-Drop Traversal**: Simply drag folder shortcuts from Windows Explorer directly into the application panel to trigger safe sweeps.
+#### Key Pages & Features:
+* **Dashboard (`src-ui/views/Dashboard.jsx`)**: 
+  - **Dynamic SVG Disk Visualizer**: Real-time visualization of the C:\ drive's capacity and free space.
+  - **Quick Clean Actions**: Instantly clear Recycle Bin, Temporary Files, and Browser Caches.
+  - **Typed Confirmation Modals**: To prevent accidental deletion, users must type `"delete"` to execute a quick clean.
+  - **Real-Time Polling**: Natively queries the sidecar every 3 seconds to keep metrics updated without blocking the UI.
 
-### ⚠️ Unified Typed Confirmation Modals
-- **Irreversible Actions Protection**: Standardizes typed verification across both the Cleaner tree selection and Duplicate Finder. The user must type `"delete"` (case-insensitive) to authorize execution.
-- **Double-Pass Duplicate Finder**: RAPID matching of identical copies based on matching sizes, header chunk hashes, and final SHA-256 signatures, with professional confirmation modals replacing standard browser alerts.
-- **Safe Shell Delete (Default)**: Natively interfaces with Windows `SHFileOperationW` shell bindings to relocate items safely to the Recycle Bin.
+* **Cleaner / Scanner (`src-ui/views/Cleaner.jsx`)**:
+  - **Target Directory Scanner**: Accepts custom paths, Drag-and-Drop, or quick presets (Downloads, Desktop, C:\).
+  - **Scan Modes**: Quick, Balanced, and Deep scans.
+  - **File Type Filtering**: Easily filter scanned results by Images, Videos, Audio, PDFs, and Text files.
+  - **Execution Strategies**: Allows users to choose between **Safe Delete** (moves to Recycle Bin) and **Permanent Shred** (cryptographic unlinking).
+  - **Batch Reloading**: Safely paginates large directory scans (e.g., 20,000+ files) to maintain blazingly fast UI performance.
 
----
+* **Settings & Transparency (`src-ui/views/Settings.jsx`)**:
+  - **Exclusion Manager**: Allows users to add custom directory paths that the scanner should ignore (e.g., development folders, game drives).
+  - **Privacy Transparency**: Educational panels reinforcing the zero-telemetry, offline-only nature of the app.
+  - **Developer Mode Override**: A heavily guarded feature requiring the user to type `"ENABLE DEVELOPER MODE"` to unlock destructive operations on critical system components.
 
-## System Architecture
+### 2. Backend Sidecar (`src-sidecar/`) - Python
+The heavy lifting (filesystem operations, safety checks, OS-level API calls) is handled by a local Python daemon.
 
-```
-                    [React Frontend - Vite + Tailwind]
-                             │ (Safe Preload Bridge Guards)
-                             ▼
-                     [Electron Shell] (Isolated IPC Preload)
-                             │ (stdin / stdout newline JSON-RPC 2.0)
-                             ▼
-                  [Python Sidecar Backend]
-                             │
-                             ▼
-                 [Safety Middleware Gate]
-                 /           │          \
-                ▼            ▼           ▼
-         [Safe Mode]   [Recycle Bin]  [Secure Shredder]
-```
+* **`main.py`**: The central entry point. It runs a dual-interface server:
+  - **JSON-RPC 2.0**: Communicates with the Electron shell via standard input/output streams.
+  - **Lightweight HTTP Server (Port 9988)**: Serves as a local API backend for standard browsers when running outside of the Electron sandbox.
+* **`safety_middleware.py`**: The Non-Bypassable Gateway. Protects critical Windows folders (`System32`, `Windows`, `OneDrive`) from accidental deletion.
+* **`delete_engine.py`**: Handles transactional file deletion, including safe-shell deletions and SSD-aware file shredding.
+* **`scanner.py`**: A high-performance, cooperative directory walker that streams results back to the UI in chunks.
+* **`crash_recovery.py`**: Maintains a WAL SQLite journal for active transactions, ensuring that mid-deletion crashes can be recovered gracefully on next startup.
 
-* **Zero telemetry / Cloud Sync / Account systems:** All operations occur purely inside local runtime memory. 
-- **WAL SQLite & Hashed Logging**: SQLite database runs in WAL (Write-Ahead Logging) mode. Local exclusions and quarantine tables refresh instantly in the UI.
+### 3. Electron Shell (`src/main/`)
+The native wrapper that bridges the React UI and the Python sidecar.
+* **`main.js`**: Bootstraps the application window and manages lifecycle events.
+* **`sidecar.js`**: Manages the Python process lifecycle, spawning it on startup and killing it on exit.
+* **`security.js`**: Enforces content security policies (CSP) and IPC constraints to harden the app against XSS or arbitrary code execution.
 
 ---
 
-## Getting Started
+## ✨ Core Features & Safety Philosophy
+
+* **100% Offline & Private**: No cloud accounts, no sync uploads, no background services. Everything operates in local RAM. SQLite is used purely for local exclusions and quarantine rules.
+* **Typed Confirmations**: Critical destructive actions require manual typing (e.g., `"delete"`) rather than simple button clicks, drastically reducing accidental wipes.
+* **Hardware-Level Analytics**: Does not use mock data. Uses native Win32 `GetDiskFreeSpaceExW` and deep recursive folder walks to provide real-time bytes tracking for temporary items and caches.
+
+---
+
+## 🚀 Getting Started
 
 ### Prerequisites
-* **Node.js:** v18+
-* **Python:** v3.11+
-* **PyInstaller:** for sidecar compilation
+* **Node.js**: v18+
+* **Python**: v3.11+
+* **PyInstaller**: (for compiling the Python sidecar)
 
-### Install Dependencies
+### Development Setup
+1. **Install JavaScript dependencies:**
+   ```bash
+   npm install
+   ```
+2. **Install Python dependencies:**
+   ```bash
+   pip install send2trash pyinstaller
+   ```
+3. **Run the Application:**
+   ```bash
+   npm run electron:dev
+   ```
+   *This launches the Vite dev server and spawns Electron in hot-reload DEV mode.*
+
+### Production Build
+To package the application into a standalone Windows executable (NSIS Installer):
 ```bash
-# Install frontend and Electron packages
-npm install
-
-# Install optional Python utilities
-pip install send2trash pyinstaller
-```
-
-### Run in Development
-```bash
-# Launches Vite dev server and spawns Electron in hot-reload DEV mode
-npm run electron:dev
-```
-
-### Production Packaging Pipeline
-The project compiles into a standalone, zero-dependency Windows executable and custom NSIS installer.
-
-```bash
-# 1. Compile UI and Python Sidecar
 npm run build
-
-# 2. Package into NSIS Installer (outputs to dist-app/)
 npm run dist
 ```
+The installer will be generated in the `dist-app/` directory.
 
 ---
 
-## License & Safety Disclaimers
+## ⚖️ License & Disclaimers
 
-### Legal & Safety Language
-**Designed with multiple protection layers to minimize accidental system damage.**
+**Proprietary License.** Redistributing compiled components is prohibited.
 
-* **SSD Shredding Clause:** For SSDs, the application performs a best-effort overwrite strategy before deletion. Due to SSD wear-leveling, TRIM behavior, and controller-level remapping, secure erase guarantees cannot be fully assured.
-* **Subsystem Safety:** This software does not perform automated, silent background cleanups or fake RAM optimizations.
-
-This software is released under the **Proprietary License**. Redistributing compiled components is prohibited.
+**Safety Disclaimer**: 
+- Designed with multiple protection layers to minimize accidental system damage.
+- **SSD Shredding Clause**: For SSDs, the application performs a best-effort overwrite strategy. Due to SSD wear-leveling, TRIM, and controller-level remapping, secure erase guarantees cannot be fully assured. 
+- This software does not perform automated, silent background cleanups or fake RAM optimizations.

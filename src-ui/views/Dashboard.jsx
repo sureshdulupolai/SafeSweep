@@ -582,12 +582,12 @@ export default function Dashboard() {
                         <span className="font-semibold text-gray-300">{hardwareStats?.ram?.toFixed(1) || 0}%</span>
                       </div>
                       <div>
-                        <span className="text-gray-500 block mb-0.5">CPU Clock</span>
-                        <span className="font-semibold text-brand-amber">{hardwareStats?.cpu_speed?.toFixed(2) || '0.00'} GHz</span>
+                        <span className="text-gray-500 block mb-0.5">Battery Health</span>
+                        <span className="font-semibold text-brand-amber">{hardwareStats?.battery_health || 'Unknown'}</span>
                       </div>
                       <div>
-                        <span className="text-gray-500 block mb-0.5">Processes</span>
-                        <span className="font-semibold text-brand-green">{hardwareStats?.processes || 0}</span>
+                        <span className="text-gray-500 block mb-0.5">Battery Level</span>
+                        <span className="font-semibold text-brand-green">{hardwareStats?.battery_percent || 'N/A'}%</span>
                       </div>
                       <div>
                         <span className="text-gray-500 block mb-0.5">Disk Read</span>

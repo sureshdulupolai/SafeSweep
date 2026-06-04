@@ -103,7 +103,7 @@ export const useAppStore = create((set, get) => {
     defaultDownloads: '',
     defaultDesktop: '',
     diskSpace: { total: 0, free: 0 },
-    hardwareStats: { cpu: 0, ram: 0, cpu_speed: 0.0, processes: 0, netSentSpeed: 0, netRecvSpeed: 0, diskReadSpeed: 0, diskWriteSpeed: 0 },
+    hardwareStats: { cpu: 0, ram: 0, battery_percent: '100', battery_health: 'AC Power', netSentSpeed: 0, netRecvSpeed: 0, diskReadSpeed: 0, diskWriteSpeed: 0 },
     fetchDiskSpace: () => {
       set({ isDiskLoading: true });
       if (window.api) {
@@ -127,8 +127,8 @@ export const useAppStore = create((set, get) => {
                 hardwareStats: {
                   cpu: result.cpu || 0,
                   ram: result.ram || 0,
-                  cpu_speed: result.cpu_speed || 0.0,
-                  processes: result.processes || 0,
+                  battery_percent: result.battery_percent || '100',
+                  battery_health: result.battery_health || 'Unknown',
                   netSentSpeed: Math.max(0, netSentSpeed),
                   netRecvSpeed: Math.max(0, netRecvSpeed),
                   diskReadSpeed: Math.max(0, diskReadSpeed),

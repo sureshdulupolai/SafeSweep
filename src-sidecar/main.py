@@ -351,23 +351,24 @@ def handle_disk_space(params):
             disk_io = {"read": 0, "write": 0}
             
         try:
-            freq = psutil.cpu_freq()
-            cpu_speed = round(freq.current / 1000.0, 2) if freq else 0.0
+            bat = psutil.sensors_battery()
+            if bat is None:
+                battery_percent = "100"
+                battery_health = "AC Power"
+            else:
+                battery_percent = str(round(bat.percent))
+                battery_health = "Good" if bat.percent > 50 else ("Medium" if bat.percent > 20 else "Weak")
         except Exception:
-            cpu_speed = 0.0
-            
-        try:
-            processes = len(psutil.pids())
-        except Exception:
-            processes = 0
+            battery_percent = "N/A"
+            battery_health = "Unknown"
             
         return {
             "total": usage.total,
             "free": usage.free,
             "cpu": cpu,
             "ram": ram,
-            "cpu_speed": cpu_speed,
-            "processes": processes,
+            "battery_percent": battery_percent,
+            "battery_health": battery_health,
             "network": network,
             "disk_io": disk_io
         }

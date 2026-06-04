@@ -6,11 +6,12 @@ import threading
 from utils.logger import logger
 
 class DevScanningTask:
-    def __init__(self, start_path, language, dev_targets, skip_dirs, rpc_notify_callback=None):
+    def __init__(self, start_path, language, dev_targets, skip_dirs, custom_targets=None, rpc_notify_callback=None):
         self.start_path = start_path
         self.language = language
         self.dev_targets = dev_targets
         self.skip_dirs = skip_dirs
+        self.custom_targets = set(custom_targets) if custom_targets else set()
         self.rpc_notify_callback = rpc_notify_callback
         self.cancel_event = threading.Event()
         self.found_caches = []
@@ -44,15 +45,23 @@ class DevScanningTask:
             "rust": {"cargo", "target"}
         }
         
-        active_targets = self.dev_targets
+        active_targets = self.dev_targets.copy()
         if self.language in lang_targets:
-            active_targets = lang_targets[self.language]
+            active_targets = lang_targets[self.language].copy()
+            
+        active_targets.update(self.custom_targets)
 
         try:
+            last_emit_time = 0
             for root, dirs, files in os.walk(self.start_path):
                 if self.cancel_event.is_set():
                     break
                     
+                current_time = time.time()
+                if current_time - last_emit_time > 0.1 and self.rpc_notify_callback:
+                    self.rpc_notify_callback("dev_scanner.current_path", {"path": root})
+                    last_emit_time = current_time
+
                 dirs[:] = [d for d in dirs if d not in self.skip_dirs]
                 
                 for d in list(dirs):
@@ -119,6 +128,7 @@ class DevCleanerService:
         start_path = params.get("path")
         language = params.get("language", "all")
         sync_mode = params.get("sync", False)
+        custom_targets = params.get("custom_targets", [])
         
         if not start_path or start_path == "C:\\":
             start_path = os.path.expanduser("~")
@@ -134,6 +144,7 @@ class DevCleanerService:
                 language, 
                 self.DEV_TARGETS, 
                 self.SKIP_DIRS, 
+                custom_targets,
                 aggregate_caches
             )
             try:
@@ -149,6 +160,7 @@ class DevCleanerService:
             language, 
             self.DEV_TARGETS, 
             self.SKIP_DIRS, 
+            custom_targets,
             self.rpc_notify_callback
         )
         def run_scan():

@@ -44,6 +44,7 @@ export const useDevCleanerStore = create((set, get) => ({
   isAnalyzing: false,
   isDeleting: false,
   
+  currentScanPath: '',
   devCaches: [],
   masterList: [],
   targetPath: '',
@@ -52,8 +53,8 @@ export const useDevCleanerStore = create((set, get) => ({
   deleteResults: [],
   
   // Actions
-  scanCaches: async (path = '', language = 'python') => {
-    set({ isScanning: true, step: 'scan', devCaches: [] });
+  scanCaches: async (path = '', language = 'python', customTargets = []) => {
+    set({ isScanning: true, step: 'scan', devCaches: [], currentScanPath: '' });
     
     // Subscribe to streaming notifications
     if (window.api && window.api.onNotification) {
@@ -62,6 +63,8 @@ export const useDevCleanerStore = create((set, get) => ({
         if (packet.method === 'dev_scanner.progress') {
           const caches = packet.params.caches || [];
           set(state => ({ devCaches: [...state.devCaches, ...caches] }));
+        } else if (packet.method === 'dev_scanner.current_path') {
+          set({ currentScanPath: packet.params.path });
         } else if (packet.method === 'dev_scanner.completed') {
           set({ isScanning: false });
         } else if (packet.method === 'dev_scanner.error') {
@@ -73,7 +76,7 @@ export const useDevCleanerStore = create((set, get) => ({
 
     try {
       const isBrowserFallback = !window.api || !window.api.onNotification;
-      const res = await fetchWithApi('dev.scan', { path, language, sync: isBrowserFallback });
+      const res = await fetchWithApi('dev.scan', { path, language, custom_targets: customTargets, sync: isBrowserFallback });
       
       // If running in browser mode without IPC, we won't get streaming,
       // but the backend will run synchronously and return the full results.
@@ -177,6 +180,7 @@ export const useDevCleanerStore = create((set, get) => ({
       isScanning: false,
       isAnalyzing: false,
       isDeleting: false,
+      currentScanPath: '',
       devCaches: [],
       masterList: [],
       deleteResults: []

@@ -7,6 +7,7 @@ export default function AwsDeleteConfirm() {
   const deleteOldEnvs = useDevCleanerStore((state) => state.deleteOldEnvs);
   const isDeleting = useDevCleanerStore((state) => state.isDeleting);
   const devCaches = useDevCleanerStore((state) => state.devCaches);
+  const resetStore = useDevCleanerStore((state) => state.resetStore);
   
   const selectedPaths = devCaches.filter(c => c.is_python_env).map(c => c.path);
   
@@ -50,20 +51,30 @@ export default function AwsDeleteConfirm() {
           className="w-full bg-brand-darkest border border-brand-border text-sm rounded-lg px-4 py-2.5 text-gray-200 focus:outline-none focus:border-brand-rose transition-colors"
         />
         
-        <button
-          onClick={handleConfirm}
-          disabled={confirmText !== 'delete' || isDeleting}
-          className="w-full bg-brand-rose hover:bg-brand-rose/90 text-white font-bold py-3 rounded-lg flex items-center justify-center gap-2 transition-colors disabled:opacity-50 disabled:cursor-not-allowed mt-4"
-        >
-          {isDeleting ? (
-            <span>Deleting environments securely...</span>
-          ) : (
-            <>
-              <Trash2 className="h-4 w-4" />
-              <span>Confirm Permanent Deletion</span>
-            </>
-          )}
-        </button>
+        <div className="flex gap-3 mt-4">
+          <button
+            onClick={resetStore}
+            disabled={isDeleting}
+            className="flex-1 bg-brand-card hover:bg-brand-card/80 border border-brand-border text-gray-300 font-semibold py-3 rounded-lg flex items-center justify-center transition-colors disabled:opacity-50"
+          >
+            Cancel / Keep Environments
+          </button>
+          
+          <button
+            onClick={handleConfirm}
+            disabled={confirmText !== 'delete' || isDeleting}
+            className="flex-1 bg-brand-rose hover:bg-brand-rose/90 text-white font-bold py-3 rounded-lg flex items-center justify-center gap-2 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+          >
+            {isDeleting ? (
+              <span>Deleting environments...</span>
+            ) : (
+              <>
+                <Trash2 className="h-4 w-4" />
+                <span>Confirm Deletion</span>
+              </>
+            )}
+          </button>
+        </div>
       </div>
     </div>
   );

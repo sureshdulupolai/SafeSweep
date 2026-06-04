@@ -382,32 +382,25 @@ def handle_quick_clean(params):
         except Exception:
             pass
 
-        # 2. Lightning-fast bulk directory purge & recreate
+        # 2. Aggressive bottom-up deletion
         try:
-            shutil.rmtree(folder_path, ignore_errors=True)
-            os.makedirs(folder_path, exist_ok=True)
-        except Exception:
-            pass
-
-        # 3. Fallback for locked items (e.g., in %TEMP% folder)
-        try:
-            if os.path.exists(folder_path):
-                for name in os.listdir(folder_path):
-                    path = os.path.join(folder_path, name)
+            for root, dirs, files in os.walk(folder_path, topdown=False):
+                for name in files:
+                    fp = os.path.join(root, name)
                     try:
-                        if os.path.isdir(path):
-                            shutil.rmtree(path, ignore_errors=True)
-                        else:
-                            os.remove(path)
+                        os.remove(fp)
                     except Exception:
                         try:
-                            os.chmod(path, stat.S_IWRITE)
-                            if os.path.isdir(path):
-                                shutil.rmtree(path, ignore_errors=True)
-                            else:
-                                os.remove(path)
+                            os.chmod(fp, stat.S_IWRITE)
+                            os.remove(fp)
                         except Exception:
                             pass
+                for name in dirs:
+                    dp = os.path.join(root, name)
+                    try:
+                        os.rmdir(dp)
+                    except Exception:
+                        pass
         except Exception:
             pass
 
@@ -457,10 +450,37 @@ def handle_quick_clean(params):
         for sub in ["Temp", "Prefetch", "SoftwareDistribution\\Download"]:
             sys_path = os.path.join(sys_root, sub)
             if os.path.exists(sys_path): temp_dirs.append(sys_path)
+            
         if up and os.path.exists(up):
-            for sub in ["AppData\\Local\\CrashDumps", "AppData\\Local\\Microsoft\\Windows\\INetCache"]:
-                up_path = os.path.join(up, sub)
-                if os.path.exists(up_path): temp_dirs.append(up_path)
+            local_appdata = os.path.join(up, "AppData", "Local")
+            roaming_appdata = os.path.join(up, "AppData", "Roaming")
+            
+            for sub in [
+                "CrashDumps",
+                "Microsoft\\Windows\\INetCache",
+                "D3DSCache",
+                "Microsoft\\Windows\\WER",
+                "Microsoft\\Windows\\Explorer",
+                "NVIDIA\\DXCache",
+                "NVIDIA\\GLCache",
+                "AMD\\DxCache",
+                "AMD\\GLCache"
+            ]:
+                p = os.path.join(local_appdata, sub)
+                if os.path.exists(p): temp_dirs.append(p)
+                
+            recent_path = os.path.join(roaming_appdata, "Microsoft\\Windows\\Recent")
+            if os.path.exists(recent_path): temp_dirs.append(recent_path)
+            
+            packages_path = os.path.join(local_appdata, "Packages")
+            if os.path.exists(packages_path):
+                try:
+                    for entry in os.scandir(packages_path):
+                        if entry.is_dir():
+                            local_cache = os.path.join(entry.path, "LocalCache")
+                            if os.path.exists(local_cache): temp_dirs.append(local_cache)
+                except Exception:
+                    pass
                 
         seen = set()
         temp_dirs = [x for x in temp_dirs if not (x in seen or seen.add(x))]

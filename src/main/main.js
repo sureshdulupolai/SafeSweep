@@ -147,6 +147,13 @@ ipcMain.on('ipc:request', (event, packet) => {
         rpcMethod = 'system.delete_empty_folders';
         rpcParams = { targets: data.targets };
         break;
+      case 'old_downloads:scan':
+        rpcMethod = 'system.scan_old_downloads';
+        break;
+      case 'old_downloads:delete':
+        rpcMethod = 'system.delete_old_downloads';
+        rpcParams = { targets: data.targets };
+        break;
     }
 
     if (rpcMethod) {

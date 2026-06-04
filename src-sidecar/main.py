@@ -556,6 +556,68 @@ def handle_delete_empty_folders(params):
             
     return {"deleted": deleted, "failed": failed}
 
+@dispatcher.register("system.scan_old_downloads")
+def handle_scan_old_downloads(params):
+    import os
+    import time
+    old_downloads = []
+    user_profile = os.environ.get("USERPROFILE", "C:\\")
+    downloads_path = os.path.join(user_profile, "Downloads")
+    
+    if not os.path.exists(downloads_path):
+        return {"old_downloads": []}
+        
+    current_time = time.time()
+    # 60 days in seconds
+    threshold_seconds = 60 * 24 * 60 * 60
+    
+    try:
+        with os.scandir(downloads_path) as it:
+            for entry in it:
+                if entry.is_file(follow_symlinks=False):
+                    stat = entry.stat()
+                    if current_time - stat.st_mtime > threshold_seconds:
+                        age_days = int((current_time - stat.st_mtime) / (24*3600))
+                        old_downloads.append({
+                            "path": entry.path,
+                            "name": entry.name,
+                            "size": stat.st_size,
+                            "age_days": age_days
+                        })
+    except Exception as e:
+        logger.error(f"Error scanning old downloads: {e}")
+        
+    return {"old_downloads": old_downloads}
+
+@dispatcher.register("system.delete_old_downloads")
+def handle_delete_old_downloads(params):
+    import os
+    import concurrent.futures
+    targets = params.get("targets", [])
+    deleted = []
+    failed = []
+    total_freed = 0
+    
+    def remove_file(path):
+        try:
+            size = os.path.getsize(path)
+            os.remove(path)
+            return path, True, size
+        except Exception:
+            return path, False, 0
+
+    with concurrent.futures.ThreadPoolExecutor(max_workers=20) as executor:
+        results = executor.map(remove_file, targets)
+        
+    for path, success, size in results:
+        if success:
+            deleted.append(path)
+            total_freed += size
+        else:
+            failed.append(path)
+            
+    return {"deleted": deleted, "failed": failed, "total_freed": total_freed}
+
 @dispatcher.register("system.shutdown")
 def handle_shutdown(params):
     logger.info("Received sidecar shutdown command. Ending process cleanly.")
@@ -681,6 +743,9 @@ class LocalCleanerHTTPServer(BaseHTTPRequestHandler):
                 elif endpoint == "empty_folders/scan":
                     res = handle_scan_empty_folders({})
                     self.write_response(res)
+                elif endpoint == "old_downloads/scan":
+                    res = handle_scan_old_downloads({})
+                    self.write_response(res)
                 else:
                     self.write_response({"error": "endpoint not found"})
             except Exception as e:
@@ -713,6 +778,10 @@ class LocalCleanerHTTPServer(BaseHTTPRequestHandler):
                 elif endpoint == "empty_folders/delete":
                     targets = data.get("targets", [])
                     res = handle_delete_empty_folders({"targets": targets})
+                    self.write_response(res)
+                elif endpoint == "old_downloads/delete":
+                    targets = data.get("targets", [])
+                    res = handle_delete_old_downloads({"targets": targets})
                     self.write_response(res)
                 else:
                     self.write_response({"error": "endpoint not found"})

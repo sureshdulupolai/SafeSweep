@@ -1,10 +1,11 @@
 import React, { useEffect, useState } from 'react';
-import { ShieldCheck, HardDrive, RefreshCw, Layers, ShieldAlert, Cpu, Trash2, Loader2, AlertTriangle, X, FolderX } from 'lucide-react';
+import { ShieldCheck, HardDrive, RefreshCw, Layers, ShieldAlert, Cpu, Trash2, Loader2, AlertTriangle, X, FolderX, DownloadCloud } from 'lucide-react';
 import { useAppStore } from '../store/useAppStore';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useNavigate } from 'react-router-dom';
 
 import EmptyFolderScanner from '../components/EmptyFolderScanner';
+import OldDownloadsScanner from '../components/OldDownloadsScanner';
 import SuccessCard from '../components/SuccessCard';
 
 // Pulsing skeleton placeholder block
@@ -55,17 +56,42 @@ export default function Dashboard() {
   const [toastMessage, setToastMessage] = useState(null);
 
   const [isEmptyFolderScannerOpen, setIsEmptyFolderScannerOpen] = useState(false);
+  const [isOldDownloadsScannerOpen, setIsOldDownloadsScannerOpen] = useState(false);
   const [isSuccessCardOpen, setIsSuccessCardOpen] = useState(false);
+  const [successCardProps, setSuccessCardProps] = useState({});
 
   const deleteStatus = useAppStore(state => state.deleteStatus);
   const deletedEmptyFolders = useAppStore(state => state.deletedEmptyFolders);
+  const deletedOldDownloads = useAppStore(state => state.deletedOldDownloads);
+  const oldDownloadsBytesFreed = useAppStore(state => state.oldDownloadsBytesFreed);
 
   useEffect(() => {
-    if (deleteStatus === 'completed' && deletedEmptyFolders.length > 0 && isEmptyFolderScannerOpen) {
-       setIsEmptyFolderScannerOpen(false);
-       setIsSuccessCardOpen(true);
+    if (deleteStatus === 'completed') {
+      if (isEmptyFolderScannerOpen && deletedEmptyFolders.length > 0) {
+         setIsEmptyFolderScannerOpen(false);
+         setSuccessCardProps({
+           title: "Operation Successful",
+           subtitle: "Empty Folders Permanently Eradicated",
+           itemsLabel: "Folders Deleted",
+           freedBytes: 0,
+           freedLabel: "Storage Freed",
+           deletedList: deletedEmptyFolders
+         });
+         setIsSuccessCardOpen(true);
+      } else if (isOldDownloadsScannerOpen && deletedOldDownloads.length > 0) {
+         setIsOldDownloadsScannerOpen(false);
+         setSuccessCardProps({
+           title: "Downloads Cleaned",
+           subtitle: "Old Files Permanently Eradicated",
+           itemsLabel: "Files Deleted",
+           freedBytes: oldDownloadsBytesFreed,
+           freedLabel: "Storage Freed",
+           deletedList: deletedOldDownloads
+         });
+         setIsSuccessCardOpen(true);
+      }
     }
-  }, [deleteStatus, deletedEmptyFolders, isEmptyFolderScannerOpen]);
+  }, [deleteStatus, deletedEmptyFolders, isEmptyFolderScannerOpen, isOldDownloadsScannerOpen, deletedOldDownloads, oldDownloadsBytesFreed]);
 
   useEffect(() => {
     if (quickCleanStatus === 'completed' && modalState.isOpen && modalState.step === 'confirm') {
@@ -625,6 +651,19 @@ export default function Dashboard() {
                   badgeColor: 'text-brand-rose border-brand-rose/30',
                   clickable: true,
                   onClick: () => setIsEmptyFolderScannerOpen(true)
+                },
+                {
+                  id: 'old_downloads',
+                  label: 'Old Downloads',
+                  value: 'Scan 60+ Days',
+                  rawBytes: 0,
+                  desc: 'Detect abandoned files',
+                  icon: DownloadCloud,
+                  color: 'text-purple-400',
+                  glowColor: 'hover:border-purple-400/50',
+                  badgeColor: 'text-purple-400 border-purple-400/30',
+                  clickable: true,
+                  onClick: () => setIsOldDownloadsScannerOpen(true)
                 }
               ].map((stat, idx) => {
                 const isCleaningThis = modalState.targetId === stat.id && quickCleanStatus === 'cleaning';
@@ -715,12 +754,17 @@ export default function Dashboard() {
         isOpen={isEmptyFolderScannerOpen} 
         onClose={() => setIsEmptyFolderScannerOpen(false)} 
       />
+      <OldDownloadsScanner 
+        isOpen={isOldDownloadsScannerOpen} 
+        onClose={() => setIsOldDownloadsScannerOpen(false)} 
+      />
       <SuccessCard 
         isOpen={isSuccessCardOpen} 
         onClose={() => {
           setIsSuccessCardOpen(false);
-          useAppStore.setState({ deleteStatus: 'idle', deletedEmptyFolders: [] });
+          useAppStore.setState({ deleteStatus: 'idle', deletedEmptyFolders: [], deletedOldDownloads: [], oldDownloadsBytesFreed: 0 });
         }} 
+        {...successCardProps}
       />
     </motion.div>
   );

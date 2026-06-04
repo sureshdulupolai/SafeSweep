@@ -68,6 +68,12 @@ export const useAppStore = create((set, get) => {
     emptyFoldersScanStatus: 'idle', // idle, scanning, completed, error
     deletedEmptyFolders: [],
 
+    // Old Downloads states
+    oldDownloadsList: [],
+    oldDownloadsScanStatus: 'idle', // idle, scanning, completed, error
+    deletedOldDownloads: [],
+    oldDownloadsBytesFreed: 0,
+
 
     // System alerts from Watchdog
     serviceWarning: null,
@@ -503,10 +509,27 @@ export const useAppStore = create((set, get) => {
         }
 
         // empty folders delete response
-        if (result.deleted !== undefined && result.failed !== undefined && result.status === undefined) {
+        if (result.deleted !== undefined && result.failed !== undefined && result.status === undefined && result.total_freed === undefined) {
            set((state) => ({ 
              deletedEmptyFolders: result.deleted || [],
              emptyFoldersList: state.emptyFoldersList.filter(f => !(result.deleted || []).includes(f)),
+             deleteStatus: 'completed' 
+           }));
+           return;
+        }
+
+        // old downloads scan response
+        if (result.old_downloads !== undefined) {
+          set({ oldDownloadsScanStatus: 'completed', oldDownloadsList: result.old_downloads });
+          return;
+        }
+
+        // old downloads delete response
+        if (result.deleted !== undefined && result.failed !== undefined && result.total_freed !== undefined) {
+           set((state) => ({ 
+             deletedOldDownloads: result.deleted || [],
+             oldDownloadsBytesFreed: result.total_freed || 0,
+             oldDownloadsList: state.oldDownloadsList.filter(f => !(result.deleted || []).includes(f.path)),
              deleteStatus: 'completed' 
            }));
            return;
@@ -923,6 +946,48 @@ export const useAppStore = create((set, get) => {
               emptyFoldersList: state.emptyFoldersList.filter(f => !targets.includes(f)),
               deleteStatus: 'completed'
             }));
+          });
+      }
+    },
+
+    // Old Downloads operations
+    scanOldDownloads: () => {
+      set({ oldDownloadsScanStatus: 'scanning', oldDownloadsList: [], deletedOldDownloads: [], oldDownloadsBytesFreed: 0 });
+      if (window.api) {
+        window.api.sendRequest('old_downloads:scan');
+      } else {
+        fetchWithTimeout('http://127.0.0.1:9988/api/old_downloads/scan', {}, 60000)
+          .then(res => res.json())
+          .then(result => {
+            set({ oldDownloadsScanStatus: 'completed', oldDownloadsList: result.old_downloads || [] });
+          })
+          .catch(() => {
+            set({ oldDownloadsScanStatus: 'error' });
+          });
+      }
+    },
+
+    deleteOldDownloads: (targets) => {
+      set({ deleteStatus: 'deleting' });
+      if (window.api) {
+        window.api.sendRequest('old_downloads:delete', { targets });
+      } else {
+        fetchWithTimeout('http://127.0.0.1:9988/api/old_downloads/delete', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ targets })
+        }, 60000)
+          .then(res => res.json())
+          .then(result => {
+            set((state) => ({
+              deletedOldDownloads: result.deleted || [],
+              oldDownloadsBytesFreed: result.total_freed || 0,
+              oldDownloadsList: state.oldDownloadsList.filter(f => !(result.deleted || []).includes(f.path)),
+              deleteStatus: 'completed'
+            }));
+          })
+          .catch(() => {
+            set({ deleteStatus: 'idle' });
           });
       }
     },

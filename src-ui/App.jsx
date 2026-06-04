@@ -4,6 +4,7 @@ import { ShieldAlert, Cpu, AlertTriangle, Loader2 } from 'lucide-react';
 import { useAppStore } from './store/useAppStore';
 import Dashboard from './views/Dashboard';
 import Cleaner from './views/Cleaner';
+import DevCleaner from './views/dev-cleaner/DevCleaner';
 import SettingsView from './views/Settings';
 import Sidebar from './components/Sidebar';
 import ErrorBoundary from './components/ErrorBoundary';
@@ -146,6 +147,7 @@ export default function App() {
               <Route index element={<Navigate to="/dashboard" replace />} />
               <Route path="dashboard" element={<Dashboard />} />
               <Route path="cleaner" element={<Cleaner />} />
+              <Route path="dev-cleaner" element={<DevCleaner />} />
               <Route path="settings" element={<SettingsView />} />
             </Route>
           </Routes>

@@ -54,7 +54,19 @@ const APPROVED_IPC_METHODS = new Set([
   'exclusions:remove',
   'quarantine:list',
   'quarantine:restore',
-  'developer:setMode'
+  'developer:setMode',
+  'dev.scan',
+  'dev.analyze_envs',
+  'dev.create_env',
+  'dev.delete_envs',
+  'empty_folders:scan',
+  'empty_folders:delete',
+  'old_downloads:scan',
+  'old_downloads:delete',
+  'services:get',
+  'services:toggle',
+  'archives:scan',
+  'archives:delete'
 ]);
 
 function validateIPCMessage(channel, data) {

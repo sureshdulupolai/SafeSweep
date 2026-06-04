@@ -150,6 +150,12 @@ ipcMain.on('ipc:request', (event, packet) => {
       case 'old_downloads:scan':
         rpcMethod = 'system.scan_old_downloads';
         break;
+      case 'dev.scan':
+      case 'dev.analyze_envs':
+      case 'dev.create_env':
+      case 'dev.delete_envs':
+        rpcMethod = channel;
+        break;
       case 'old_downloads:delete':
         rpcMethod = 'system.delete_old_downloads';
         rpcParams = { targets: data.targets };

@@ -17,6 +17,7 @@ from utils.recycle_bin import query_recycle_bin, empty_recycle_bin
 from utils.database import db
 from utils.logger import logger
 from error_classification import CleanerError
+from dev_cleaner import DevCleanerService
 
 dispatcher = RPCDispatcher()
 
@@ -35,6 +36,8 @@ def rpc_notify(method, params):
     }
     sys.stdout.write(json.dumps(packet) + "\n")
     sys.stdout.flush()
+
+DevCleanerService(dispatcher, rpc_notify)
 
 # Globals to cache statistics safely to avoid repetitive heavy I/O walks
 cached_stats = {
@@ -871,6 +874,10 @@ class LocalCleanerHTTPServer(BaseHTTPRequestHandler):
                 elif endpoint == "archives/delete":
                     targets = data.get("targets", [])
                     res = handle_delete_archives({"targets": targets})
+                    self.write_response(res)
+                elif endpoint == "rpc":
+                    # Handle raw JSON-RPC payload from browser fallback
+                    res = dispatcher.handle_message(post_data.decode('utf-8'))
                     self.write_response(res)
                 else:
                     self.write_response({"error": "endpoint not found"})

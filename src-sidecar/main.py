@@ -325,6 +325,7 @@ def handle_developer_mode(params):
     return {"developer_mode": enabled}
 
 import shutil
+import psutil
 @dispatcher.register("system.disk_space")
 def handle_disk_space(params):
     r"""
@@ -333,13 +334,45 @@ def handle_disk_space(params):
     """
     try:
         usage = shutil.disk_usage("C:\\")
+        
+        cpu = psutil.cpu_percent(interval=None)
+        ram = psutil.virtual_memory().percent
+        
+        try:
+            net = psutil.net_io_counters()
+            network = {"sent": net.bytes_sent, "recv": net.bytes_recv}
+        except Exception:
+            network = {"sent": 0, "recv": 0}
+
+        try:
+            disk = psutil.disk_io_counters()
+            disk_io = {"read": disk.read_bytes, "write": disk.write_bytes}
+        except Exception:
+            disk_io = {"read": 0, "write": 0}
+            
+        try:
+            freq = psutil.cpu_freq()
+            cpu_speed = round(freq.current / 1000.0, 2) if freq else 0.0
+        except Exception:
+            cpu_speed = 0.0
+            
+        try:
+            processes = len(psutil.pids())
+        except Exception:
+            processes = 0
+            
         return {
             "total": usage.total,
-            "free": usage.free
+            "free": usage.free,
+            "cpu": cpu,
+            "ram": ram,
+            "cpu_speed": cpu_speed,
+            "processes": processes,
+            "network": network,
+            "disk_io": disk_io
         }
     except Exception as e:
         logger.error("Failed to query disk space.", {"error": str(e)})
-        # If absolute failure, return 0 to indicate unknown rather than fake static data
         return {"total": 0, "free": 0}
 
 @dispatcher.register("system.dashboard_stats")

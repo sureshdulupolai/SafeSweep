@@ -27,6 +27,7 @@ export default function Dashboard() {
 
   // All data comes from the store - no local state needed
   const diskSpace = useAppStore((state) => state.diskSpace);
+  const hardwareStats = useAppStore((state) => state.hardwareStats);
   const fetchDiskSpace = useAppStore((state) => state.fetchDiskSpace);
   const dashboardStats = useAppStore((state) => state.dashboardStats);
   const fetchDashboardStats = useAppStore((state) => state.fetchDashboardStats);
@@ -511,7 +512,7 @@ export default function Dashboard() {
                   </div>
                 </div>
               ) : (
-                <div className="md:col-span-2 glass-card p-5 flex flex-col md:flex-row items-center gap-6 justify-around premium-glow-subtle relative">
+                <div className="md:col-span-3 glass-card p-5 flex flex-col md:flex-row items-center gap-6 justify-around premium-glow-subtle relative">
 
                   <div className="relative w-40 h-40 flex items-center justify-center flex-shrink-0">
                     <svg className="w-full h-full transform -rotate-90" viewBox="0 0 100 100">
@@ -565,44 +566,49 @@ export default function Dashboard() {
                       </div>
                     </div>
                   </div>
-                </div>
-              )}
 
-              {/* Scan Actions */}
-              <div className="glass-card p-5 flex flex-col justify-between space-y-4">
-                <div className="space-y-3">
-                  <h3 className="font-semibold text-gray-200 text-sm">Select Scan Level</h3>
-                  <div className="space-y-2">
-                    {[
-                      { id: 'quick', name: 'Quick Scan', desc: 'Sweep temp, caches, and recycle bins with low CPU footprints.' },
-                      { id: 'balanced', name: 'Balanced Scan', desc: 'Scan custom system drives (C:\\) with safety protections active.' },
-                      { id: 'deep', name: 'Deep Scan', desc: 'Run complete analysis and double-pass duplicate hashes.' }
-                    ].map((mode) => (
-                      <div
-                        key={mode.id}
-                        onClick={() => setScanMode(mode.id)}
-                        className={`p-2.5 rounded-lg border text-xs cursor-pointer transition-colors ${
-                          scanMode === mode.id
-                            ? 'bg-brand-accent/10 border-brand-accent text-brand-accent'
-                            : 'bg-brand-card hover:bg-brand-card/80 border-brand-border text-gray-400'
-                        }`}
-                      >
-                        <span className="font-semibold block text-gray-200 mb-0.5">{mode.name}</span>
-                        {mode.desc}
+                  <div className="space-y-3 flex-1 border-l border-brand-border pl-6">
+                    <div className="flex items-center gap-2 mb-1">
+                      <Cpu className="h-4 w-4 text-brand-green" />
+                      <h3 className="font-semibold text-gray-200 text-sm">Live System Telemetry</h3>
+                    </div>
+                    <div className="grid grid-cols-2 gap-3 text-[11px] font-mono">
+                      <div>
+                        <span className="text-gray-500 block mb-0.5">CPU Load</span>
+                        <span className="font-semibold text-gray-300">{hardwareStats?.cpu?.toFixed(1) || 0}%</span>
                       </div>
-                    ))}
+                      <div>
+                        <span className="text-gray-500 block mb-0.5">RAM Usage</span>
+                        <span className="font-semibold text-gray-300">{hardwareStats?.ram?.toFixed(1) || 0}%</span>
+                      </div>
+                      <div>
+                        <span className="text-gray-500 block mb-0.5">CPU Clock</span>
+                        <span className="font-semibold text-brand-amber">{hardwareStats?.cpu_speed?.toFixed(2) || '0.00'} GHz</span>
+                      </div>
+                      <div>
+                        <span className="text-gray-500 block mb-0.5">Processes</span>
+                        <span className="font-semibold text-brand-green">{hardwareStats?.processes || 0}</span>
+                      </div>
+                      <div>
+                        <span className="text-gray-500 block mb-0.5">Disk Read</span>
+                        <span className="font-semibold text-gray-300">{formatBytes(hardwareStats?.diskReadSpeed || 0)}/s</span>
+                      </div>
+                      <div>
+                        <span className="text-gray-500 block mb-0.5">Disk Write</span>
+                        <span className="font-semibold text-gray-300">{formatBytes(hardwareStats?.diskWriteSpeed || 0)}/s</span>
+                      </div>
+                      <div>
+                        <span className="text-gray-500 block mb-0.5">Net Recv</span>
+                        <span className="font-semibold text-gray-300">{formatBytes(hardwareStats?.netRecvSpeed || 0)}/s</span>
+                      </div>
+                      <div>
+                        <span className="text-gray-500 block mb-0.5">Net Sent</span>
+                        <span className="font-semibold text-gray-300">{formatBytes(hardwareStats?.netSentSpeed || 0)}/s</span>
+                      </div>
+                    </div>
                   </div>
                 </div>
-
-                <button
-                  onClick={handleScanTrigger}
-                  disabled={scanStatus === 'scanning'}
-                  className="w-full bg-brand-accent hover:bg-brand-accent/95 text-white py-2.5 rounded-lg text-xs font-semibold flex items-center justify-center gap-1.5 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
-                >
-                  <Cpu className="h-4 w-4" />
-                  <span>{scanStatus === 'scanning' ? 'Scanning Active...' : 'Initialize Secure Scan'}</span>
-                </button>
-              </div>
+              )}
             </div>
 
             {/* Analytics Statistics row */}

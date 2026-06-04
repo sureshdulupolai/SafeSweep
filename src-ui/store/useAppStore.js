@@ -103,6 +103,7 @@ export const useAppStore = create((set, get) => {
     defaultDownloads: '',
     defaultDesktop: '',
     diskSpace: { total: 0, free: 0 },
+    hardwareStats: { cpu: 0, ram: 0, cpu_speed: 0.0, processes: 0, netSentSpeed: 0, netRecvSpeed: 0, diskReadSpeed: 0, diskWriteSpeed: 0 },
     fetchDiskSpace: () => {
       set({ isDiskLoading: true });
       if (window.api) {
@@ -111,7 +112,36 @@ export const useAppStore = create((set, get) => {
         fetchWithTimeout('http://127.0.0.1:9988/api/disk', {}, 5000)
           .then(res => res.json())
           .then(result => {
-            set({ diskSpace: { total: result.total, free: result.free }, isDiskLoading: false });
+            set(state => {
+              const now = Date.now();
+              const lastTime = state.lastHardwareTime || (now - 3000);
+              const timeDiffSec = Math.max((now - lastTime) / 1000, 1);
+              
+              const netSentSpeed = result.network ? (result.network.sent - (state.lastNetworkSent || result.network.sent)) / timeDiffSec : 0;
+              const netRecvSpeed = result.network ? (result.network.recv - (state.lastNetworkRecv || result.network.recv)) / timeDiffSec : 0;
+              const diskReadSpeed = result.disk_io ? (result.disk_io.read - (state.lastDiskRead || result.disk_io.read)) / timeDiffSec : 0;
+              const diskWriteSpeed = result.disk_io ? (result.disk_io.write - (state.lastDiskWrite || result.disk_io.write)) / timeDiffSec : 0;
+              
+              return { 
+                diskSpace: { total: result.total, free: result.free }, 
+                hardwareStats: {
+                  cpu: result.cpu || 0,
+                  ram: result.ram || 0,
+                  cpu_speed: result.cpu_speed || 0.0,
+                  processes: result.processes || 0,
+                  netSentSpeed: Math.max(0, netSentSpeed),
+                  netRecvSpeed: Math.max(0, netRecvSpeed),
+                  diskReadSpeed: Math.max(0, diskReadSpeed),
+                  diskWriteSpeed: Math.max(0, diskWriteSpeed)
+                },
+                lastNetworkSent: result.network?.sent,
+                lastNetworkRecv: result.network?.recv,
+                lastDiskRead: result.disk_io?.read,
+                lastDiskWrite: result.disk_io?.write,
+                lastHardwareTime: now,
+                isDiskLoading: false 
+              };
+            });
           })
           .catch(() => {
             set({ isDiskLoading: false });

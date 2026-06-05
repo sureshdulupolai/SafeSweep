@@ -1,6 +1,6 @@
 # SafeSweep 🧹
 
-> A premium, offline-first, and safety-focused Windows desktop utility for intelligent system cleaning and developer environment management.
+> A premium, desktop-first, and safety-focused Windows desktop utility for intelligent system cleaning and developer environment management.
 
 > [!WARNING]
 > **Windows Exclusive:** SafeSweep deeply integrates with the Windows OS kernel, NTFS filesystem, and Windows Management Instrumentation (WMI). It is **NOT** supported on macOS, Linux, Android, or iOS.
@@ -122,4 +122,4 @@ C:\Users\user\Desktop\Cleaner\
 ---
 
 ## 🔒 Privacy First
-SafeSweep operates **100% offline**. Telemetry is strictly local. No network calls are made to external servers. What happens on your machine, stays on your machine.
+SafeSweep operates **locally on your machine**. Telemetry is strictly local. No network calls are made to external servers. What happens on your machine, stays on your machine.

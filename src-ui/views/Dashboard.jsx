@@ -1,4 +1,5 @@
 import React, { useEffect, useState } from 'react';
+import { createPortal } from 'react-dom';
 import { ShieldCheck, HardDrive, RefreshCw, Layers, ShieldAlert, Cpu, Trash2, Loader2, AlertTriangle, X, FolderX, DownloadCloud, Activity, FileArchive } from 'lucide-react';
 import { useAppStore } from '../store/useAppStore';
 import { motion, AnimatePresence } from 'framer-motion';
@@ -210,8 +211,9 @@ export default function Dashboard() {
       )}
 
       {/* Delete Confirmation Modal */}
-      <AnimatePresence>
-        {modalState.isOpen && (
+      {createPortal(
+        <AnimatePresence>
+          {modalState.isOpen && (
           <motion.div
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
@@ -367,7 +369,8 @@ export default function Dashboard() {
             </motion.div>
           </motion.div>
         )}
-      </AnimatePresence>
+      </AnimatePresence>, document.body)}
+
 
       <AnimatePresence mode="wait">
         {isSystemLoading ? (

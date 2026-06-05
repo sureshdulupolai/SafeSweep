@@ -41,11 +41,13 @@ const APPROVED_IPC_METHODS = new Set([
   'system:startup',
   'system:disk',
   'system:dashboard_stats',
+  'system:quick_clean',
   'scanner:start',
   'scanner:cancel',
   'delete:start',
   'delete:cancel',
-  'duplicates:start',
+  'duplicates:scan',
+  'duplicates:delete',
   'browser:scan',
   'recycle:query',
   'recycle:empty',
@@ -56,9 +58,11 @@ const APPROVED_IPC_METHODS = new Set([
   'quarantine:restore',
   'developer:setMode',
   'dev.scan',
+  'dev.cancel_scan',
   'dev.analyze_envs',
   'dev.create_env',
   'dev.delete_envs',
+  'dev.cancel_delete_envs',
   'empty_folders:scan',
   'empty_folders:delete',
   'old_downloads:scan',
@@ -66,7 +70,15 @@ const APPROVED_IPC_METHODS = new Set([
   'services:get',
   'services:toggle',
   'archives:scan',
-  'archives:delete'
+  'archives:delete',
+  'uninstaller:list',
+  'uninstaller:uninstall',
+  'uninstaller:cleanLeftovers',
+  'uninstaller:research',
+  'system:boost',
+  'system:privacy_sweep',
+  'startup:list',
+  'startup:toggle'
 ]);
 
 function validateIPCMessage(channel, data) {

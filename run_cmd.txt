@@ -1,1 +1,4 @@
 npm run electron:dev
+
+after update in project run this for update in software: 
+npm run dist

@@ -116,9 +116,12 @@ ipcMain.on('ipc:request', (event, packet) => {
       case 'delete:cancel':
         rpcMethod = 'delete.cancel_delete';
         break;
-      case 'duplicates:start':
-        rpcMethod = 'duplicates.start_scan';
-        rpcParams = { folders: data.folders };
+      case 'duplicates:scan':
+        rpcMethod = 'system.scan_duplicates';
+        break;
+      case 'duplicates:delete':
+        rpcMethod = 'system.delete_duplicates';
+        rpcParams = { targets: data.targets };
         break;
       case 'browser:scan':
         rpcMethod = 'browser.scan_caches';
@@ -167,9 +170,11 @@ ipcMain.on('ipc:request', (event, packet) => {
         rpcMethod = 'system.scan_old_downloads';
         break;
       case 'dev.scan':
+      case 'dev.cancel_scan':
       case 'dev.analyze_envs':
       case 'dev.create_env':
       case 'dev.delete_envs':
+      case 'dev.cancel_delete_envs':
         rpcMethod = channel;
         break;
       case 'old_downloads:delete':
@@ -189,6 +194,34 @@ ipcMain.on('ipc:request', (event, packet) => {
       case 'archives:delete':
         rpcMethod = 'system.delete_archives';
         rpcParams = { targets: data.targets };
+        break;
+      case 'uninstaller:list':
+        rpcMethod = 'uninstaller.list';
+        break;
+      case 'uninstaller:uninstall':
+        rpcMethod = 'uninstaller.uninstall';
+        rpcParams = { uninstall_string: data.uninstall_string };
+        break;
+      case 'uninstaller:cleanLeftovers':
+        rpcMethod = 'uninstaller.clean_leftovers';
+        rpcParams = { app_name: data.app_name };
+        break;
+      case 'uninstaller:research':
+        rpcMethod = 'uninstaller.research';
+        rpcParams = { app_name: data.app_name };
+        break;
+      case 'system:boost':
+        rpcMethod = 'system.boost';
+        break;
+      case 'system:privacy_sweep':
+        rpcMethod = 'system.privacy_sweep';
+        break;
+      case 'startup:list':
+        rpcMethod = 'startup.list';
+        break;
+      case 'startup:toggle':
+        rpcMethod = 'startup.toggle';
+        rpcParams = { name: data.name, enable: data.enable };
         break;
     }
 

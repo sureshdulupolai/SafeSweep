@@ -12,7 +12,38 @@
     "electron:start": "electron .",
     "preelectron:dev": "powershell -Command \"$p = netstat -ano | Select-String ':5173\\s' | ForEach-Object { ($_ -split '\\s+')[-1] } | Select-Object -First 1; if ($p) { taskkill /PID $p /F 2>$null }; Start-Sleep -Milliseconds 300\"",
     "electron:dev": "concurrently --prefix none \"npm run dev --silent\" \"wait-on http://localhost:5173 && electron --no-deprecation .\"",
-    "dist": "electron-builder"
+    "dist": "npm run build && electron-builder"
+  },
+  "build": {
+    "appId": "com.safesweep.app",
+    "productName": "SafeSweep",
+    "icon": "build/icon.ico",
+    "win": {
+      "target": "nsis"
+    },
+    "nsis": {
+      "oneClick": true,
+      "perMachine": false,
+      "allowToChangeInstallationDirectory": false,
+      "createDesktopShortcut": true
+    },
+    "files": [
+      "src/main/**/*",
+      "src/preload/**/*",
+      "dist-ui/**/*"
+    ],
+    "extraResources": [
+      {
+        "from": "sidecar-dist",
+        "to": "sidecar-dist",
+        "filter": [
+          "**/*"
+        ]
+      }
+    ],
+    "directories": {
+      "output": "release"
+    }
   },
   "keywords": [
     "utility",
@@ -21,7 +52,7 @@
     "privacy-focused",
     "electron"
   ],
-  "author": "Antigravity",
+  "author": "Suresh Polai",
   "license": "Proprietary",
   "dependencies": {
     "framer-motion": "^11.2.10",
@@ -37,6 +68,7 @@
     "autoprefixer": "^10.4.19",
     "concurrently": "^8.2.2",
     "electron": "^30.0.9",
+    "electron-builder": "^26.8.1",
     "postcss": "^8.4.38",
     "tailwindcss": "^3.4.3",
     "vite": "^5.2.11",

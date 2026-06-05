@@ -21,6 +21,19 @@ from dev_cleaner import DevCleanerService
 
 dispatcher = RPCDispatcher()
 
+@dispatcher.register("quarantine.list")
+def rpc_quarantine_list(params):
+    try:
+        rows = db.fetch_all("SELECT quarantine_id, original_path, timestamp FROM quarantine")
+        return [{"id": r[0], "path": r[1], "timestamp": r[2]} for r in rows]
+    except Exception as e:
+        logger.error(f"Error fetching quarantine list: {e}")
+        return []
+
+@dispatcher.register("quarantine.restore")
+def rpc_quarantine_restore(params):
+    return {"success": False, "error": "Quarantine restore not fully implemented yet."}
+
 # Active Task tracking for cooperative cancellation mechanisms
 active_scan_task = None
 active_delete_task = None

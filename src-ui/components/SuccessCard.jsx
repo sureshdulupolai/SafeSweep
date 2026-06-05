@@ -1,4 +1,5 @@
 import React from 'react';
+import { createPortal } from 'react-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 import { ShieldCheck, CheckCircle2, Trash2, X } from 'lucide-react';
 
@@ -30,7 +31,7 @@ export default function SuccessCard({
 
   if (!isOpen) return null;
 
-  return (
+  return createPortal(
     <AnimatePresence>
       <motion.div
         initial={{ opacity: 0 }}
@@ -134,6 +135,7 @@ export default function SuccessCard({
           </div>
         </motion.div>
       </motion.div>
-    </AnimatePresence>
+    </AnimatePresence>,
+    document.body
   );
 }

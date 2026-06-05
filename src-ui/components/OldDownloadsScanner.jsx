@@ -1,4 +1,5 @@
 import React, { useEffect, useState } from 'react';
+import { createPortal } from 'react-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 import { DownloadCloud, Loader2, Trash2, ShieldAlert, ShieldCheck, X, CheckSquare, Square, RefreshCw, CalendarOff } from 'lucide-react';
 import { useAppStore } from '../store/useAppStore';
@@ -73,7 +74,7 @@ export default function OldDownloadsScanner({ isOpen, onClose }) {
 
   if (!isOpen) return null;
 
-  return (
+  return createPortal(
     <AnimatePresence>
       <motion.div
         initial={{ opacity: 0 }}
@@ -256,6 +257,7 @@ export default function OldDownloadsScanner({ isOpen, onClose }) {
           </div>
         </motion.div>
       </motion.div>
-    </AnimatePresence>
+    </AnimatePresence>,
+    document.body
   );
 }

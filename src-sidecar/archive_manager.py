@@ -27,37 +27,37 @@ def scan_archives():
     
     SKIP_DIRS = {'windows', 'program files', 'program files (x86)', 'programdata', '$recycle.bin', 'system volume information', 'appdata', 'node_modules', '.git', 'pkg', '.cargo', 'go'}
 
-    def scan_dir_recursive(path, local_archives):
-        try:
-            with os.scandir(path) as it:
-                for entry in it:
-                    try:
-                        if entry.is_symlink():
-                            continue
-                        if entry.is_dir():
-                            if entry.name.lower() not in SKIP_DIRS:
-                                scan_dir_recursive(entry.path, local_archives)
-                        elif entry.is_file():
-                            ext = os.path.splitext(entry.name)[1].lower()
-                            if ext in ARCHIVE_EXTENSIONS:
-                                stat = entry.stat()
-                                local_archives.append({
-                                    "path": entry.path,
-                                    "name": entry.name,
-                                    "size": stat.st_size,
-                                    "type": ext[1:].upper()
-                                })
-                    except Exception:
-                        pass
-        except Exception:
-            pass
-
     import threading
     archives_lock = threading.Lock()
-    
+
     def process_top_level(path):
         local_archives = []
-        scan_dir_recursive(path, local_archives)
+        stack = [path]
+        while stack:
+            current_dir = stack.pop()
+            try:
+                with os.scandir(current_dir) as it:
+                    for entry in it:
+                        try:
+                            if entry.is_symlink():
+                                continue
+                            if entry.is_dir():
+                                if entry.name.lower() not in SKIP_DIRS:
+                                    stack.append(entry.path)
+                            elif entry.is_file():
+                                ext = os.path.splitext(entry.name)[1].lower()
+                                if ext in ARCHIVE_EXTENSIONS:
+                                    stat = entry.stat()
+                                    local_archives.append({
+                                        "path": entry.path,
+                                        "name": entry.name,
+                                        "size": stat.st_size,
+                                        "type": ext[1:].upper()
+                                    })
+                        except Exception:
+                            pass
+            except Exception:
+                pass
         if local_archives:
             with archives_lock:
                 archives.extend(local_archives)

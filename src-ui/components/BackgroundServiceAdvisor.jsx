@@ -1,4 +1,5 @@
 import React, { useEffect, useState } from 'react';
+import { createPortal } from 'react-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Activity, Loader2, Play, Square, X, AlertTriangle, ShieldAlert, Cpu, HardDrive } from 'lucide-react';
 import { useAppStore } from '../store/useAppStore';
@@ -42,7 +43,7 @@ export default function BackgroundServiceAdvisor({ isOpen, onClose }) {
 
   if (!isOpen) return null;
 
-  return (
+  return createPortal(
     <AnimatePresence>
       <motion.div
         initial={{ opacity: 0 }}
@@ -208,6 +209,7 @@ export default function BackgroundServiceAdvisor({ isOpen, onClose }) {
           </div>
         </motion.div>
       </motion.div>
-    </AnimatePresence>
+    </AnimatePresence>,
+    document.body
   );
 }

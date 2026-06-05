@@ -601,31 +601,56 @@ def handle_quick_clean(params):
 @dispatcher.register("system.scan_empty_folders")
 def handle_scan_empty_folders(params):
     import os
-    empty_folders = []
+    import concurrent.futures
+
     skip_dirs = {"Windows", "Program Files", "Program Files (x86)", "ProgramData", "AppData", "node_modules", ".git", "$Recycle.Bin", "System Volume Information", "Default", "Public", "TEMP", "Intel", "inetpub", "PerfLogs", "Common Files", "Default User", "All Users"}
     
-    # Ultra-fast iterative scan using os.scandir
-    stack = ["C:\\"]
-    while stack:
-        current_dir = stack.pop()
-        try:
-            with os.scandir(current_dir) as it:
-                is_empty = True
-                for entry in it:
-                    is_empty = False
-                    if entry.is_dir(follow_symlinks=False):
-                        name = entry.name
-                        if name not in skip_dirs and not name.startswith('.'):
-                            stack.append(entry.path)
-                
-                if is_empty and current_dir != "C:\\":
-                    # Only include folders we likely have permission to delete
-                    if os.access(current_dir, os.W_OK):
-                        # Final check to avoid hidden windows system sub-paths
-                        if not any(x in current_dir.lower() for x in ['\\windows\\', '\\programdata\\', '\\default\\', '\\public\\', '\\intel\\', '\\inetpub\\']):
-                            empty_folders.append(current_dir)
-        except Exception:
-            pass # Skip permission errors silently to maintain speed
+    def scan_subtree(root_dir):
+        sub_empty = []
+        stack = [root_dir]
+        while stack:
+            current_dir = stack.pop()
+            try:
+                with os.scandir(current_dir) as it:
+                    is_empty = True
+                    for entry in it:
+                        is_empty = False
+                        if entry.is_dir(follow_symlinks=False):
+                            name = entry.name
+                            if name not in skip_dirs and not name.startswith('.'):
+                                stack.append(entry.path)
+                    
+                    if is_empty and current_dir != "C:\\":
+                        # Only include folders we likely have permission to delete
+                        if os.access(current_dir, os.W_OK):
+                            # Final check to avoid hidden windows system sub-paths
+                            if not any(x in current_dir.lower() for x in ['\\windows\\', '\\programdata\\', '\\default\\', '\\public\\', '\\intel\\', '\\inetpub\\']):
+                                sub_empty.append(current_dir)
+            except Exception:
+                pass # Skip permission errors silently to maintain speed
+        return sub_empty
+
+    empty_folders = []
+    top_level_dirs = []
+    
+    # Get top level directories
+    try:
+        with os.scandir("C:\\") as it:
+            for entry in it:
+                if entry.is_dir(follow_symlinks=False):
+                    if entry.name not in skip_dirs and not entry.name.startswith('.'):
+                        top_level_dirs.append(entry.path)
+    except Exception:
+        pass
+
+    # Process subtrees in parallel
+    with concurrent.futures.ThreadPoolExecutor(max_workers=16) as executor:
+        futures = {executor.submit(scan_subtree, path): path for path in top_level_dirs}
+        for future in concurrent.futures.as_completed(futures):
+            try:
+                empty_folders.extend(future.result())
+            except Exception:
+                pass
             
     return {"empty_folders": empty_folders}
 

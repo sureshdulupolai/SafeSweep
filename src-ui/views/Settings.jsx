@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { ShieldCheck, Plus, Trash2, Eye, EyeOff, ShieldAlert, BookOpen } from 'lucide-react';
+import { ShieldCheck, Plus, Trash2, Eye, EyeOff, ShieldAlert, BookOpen, Info, X } from 'lucide-react';
 import { useAppStore } from '../store/useAppStore';
 import { motion } from 'framer-motion';
 
@@ -12,6 +12,7 @@ export default function Settings() {
 
   const [newExclusionPath, setNewExclusionPath] = useState('');
   const [showDeveloperModal, setShowDeveloperModal] = useState(false);
+  const [showInfoModal, setShowInfoModal] = useState(false);
   const [typedConfirmation, setTypedConfirmation] = useState('');
 
   const handleAddExclusion = () => {
@@ -46,9 +47,18 @@ export default function Settings() {
       exit={{ opacity: 0, y: 15 }}
       className="flex-1 p-6 space-y-6 overflow-y-auto select-text text-sm"
     >
-      <div>
-        <h2 className="text-xl font-bold tracking-tight text-gray-200">Settings & Transparency Deck</h2>
-        <p className="text-xs text-gray-400 mt-0.5 font-sans">Manage database filters, customize directory exclusions, and view privacy transparency disclosures.</p>
+      <div className="flex items-center justify-between">
+        <div>
+          <h2 className="text-xl font-bold tracking-tight text-gray-200">Settings & Transparency Deck</h2>
+          <p className="text-xs text-gray-400 mt-0.5 font-sans">Manage database filters, customize directory exclusions, and view privacy transparency disclosures.</p>
+        </div>
+        <button
+          onClick={() => setShowInfoModal(true)}
+          className="flex items-center gap-1.5 px-3 py-1.5 bg-brand-accent/10 hover:bg-brand-accent/20 text-brand-accent border border-brand-accent/20 rounded-lg text-xs font-semibold transition-colors"
+        >
+          <Info className="h-4 w-4" />
+          <span>Feature Guide</span>
+        </button>
       </div>
 
       {/* Grid: Exclusions + Privacy Transparency */}
@@ -162,10 +172,63 @@ export default function Settings() {
         </div>
       </div>
 
+      {/* Info Modal */}
+      {showInfoModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm">
+          <motion.div 
+            initial={{ scale: 0.95, opacity: 0 }}
+            animate={{ scale: 1, opacity: 1 }}
+            className="w-full max-w-lg bg-brand-dark border border-brand-border rounded-xl p-5 space-y-4 premium-glow-subtle shadow-2xl"
+          >
+            <div className="flex items-center justify-between text-gray-200 border-b border-brand-border pb-3">
+              <div className="flex items-center gap-2">
+                <Info className="h-5 w-5 text-brand-accent" />
+                <span className="font-semibold text-base">Settings Feature Guide</span>
+              </div>
+              <button onClick={() => setShowInfoModal(false)} className="text-gray-400 hover:text-white transition-colors">
+                <X className="h-5 w-5" />
+              </button>
+            </div>
+            
+            <div className="space-y-4 text-xs text-gray-300 leading-relaxed max-h-[60vh] overflow-y-auto pr-2 custom-scrollbar">
+              
+              <div className="bg-brand-darkest p-3 rounded-lg border border-brand-border space-y-1">
+                <h4 className="text-brand-accent font-semibold flex items-center gap-1.5"><Plus className="h-3 w-3"/> Directory Exclusion Index</h4>
+                <p><strong>Use Case:</strong> If you have personal files, game drives (e.g., <code className="bg-brand-card px-1 rounded text-brand-accent">D:\Games</code>), or critical work folders that you NEVER want the cleaner to scan or accidentally delete, you add them here.</p>
+                <p><strong>How to use:</strong> Type the full absolute path and click Add. The scanner will permanently ignore these directories.</p>
+              </div>
+
+              <div className="bg-brand-darkest p-3 rounded-lg border border-brand-border space-y-1">
+                <h4 className="text-brand-green font-semibold flex items-center gap-1.5"><BookOpen className="h-3 w-3"/> Privacy Transparency</h4>
+                <p><strong>Use Case:</strong> Provides complete clarity on how your data is handled. SafeSweep is strictly offline.</p>
+                <p><strong>What it means:</strong> There are no cloud backups, no telemetry pings, and absolutely no data sharing. The only things saved locally are your settings and exclusion lists.</p>
+              </div>
+
+              <div className="bg-brand-darkest p-3 rounded-lg border border-brand-border space-y-1">
+                <h4 className="text-brand-rose font-semibold flex items-center gap-1.5"><ShieldAlert className="h-3 w-3"/> Developer Lock Override</h4>
+                <p><strong>Use Case:</strong> By default, SafeSweep protects critical Windows system files (<code className="bg-brand-card px-1 rounded">.sys</code>, <code className="bg-brand-card px-1 rounded">.dll</code>, Windows directories) from being deleted, even if they are empty or old.</p>
+                <p><strong>Turning it ON:</strong> Unlocks these safety restrictions. Use this ONLY if you are an advanced developer testing specific OS environments. <strong>Danger:</strong> Accidental deletion may destroy the OS.</p>
+                <p><strong>Turning it OFF:</strong> Restores maximum safety rails.</p>
+              </div>
+
+            </div>
+
+            <div className="flex justify-end pt-3 border-t border-brand-border">
+              <button 
+                onClick={() => setShowInfoModal(false)}
+                className="px-5 py-2 bg-brand-accent hover:bg-brand-accent/90 text-white rounded-lg text-xs font-semibold transition-colors"
+              >
+                Understood
+              </button>
+            </div>
+          </motion.div>
+        </div>
+      )}
+
       {/* Developer Mode Confirmation Modal */}
       {showDeveloperModal && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm">
-          <div className="w-full max-w-md bg-brand-dark border border-brand-border rounded-xl p-5 space-y-4 premium-glow-subtle">
+          <div className="w-full max-w-md bg-brand-dark border border-brand-border rounded-xl p-5 space-y-4 premium-glow-subtle shadow-2xl">
             <div className="flex items-center gap-2 text-brand-rose">
               <ShieldAlert className="h-5 w-5" />
               <span className="font-semibold text-base">Confirm Developer Mode Unlock</span>

@@ -200,6 +200,21 @@ export default function Dashboard() {
   const diskUsed = diskTotal - diskFree;
   const diskPercentage = diskTotal > 0 ? (diskUsed / diskTotal) * 100 : 0;
 
+  const getDiskStatusMessage = (percent) => {
+    if (percent <= 10) return { msg: "Only 10%? Is this a brand new PC?", color: "text-brand-green", bg: "bg-brand-green/10 border-brand-green/20" };
+    if (percent <= 20) return { msg: "Finally added some stuff! Still fresh.", color: "text-brand-green", bg: "bg-brand-green/10 border-brand-green/20" };
+    if (percent <= 30) return { msg: "Getting cozy. Lots of room to breathe.", color: "text-brand-green", bg: "bg-brand-green/10 border-brand-green/20" };
+    if (percent <= 40) return { msg: "Well utilized. The sweet spot of computing.", color: "text-brand-accent", bg: "bg-brand-accent/10 border-brand-accent/20" };
+    if (percent <= 50) return { msg: "Halfway there! Perfectly balanced.", color: "text-brand-accent", bg: "bg-brand-accent/10 border-brand-accent/20" };
+    if (percent <= 60) return { msg: "Starting to collect some digital weight.", color: "text-brand-amber", bg: "bg-brand-amber/10 border-brand-amber/20" };
+    if (percent <= 70) return { msg: "Getting crowded. Might want to tidy up soon.", color: "text-brand-amber", bg: "bg-brand-amber/10 border-brand-amber/20" };
+    if (percent <= 80) return { msg: "Chonky drive! Storage is feeling the pressure.", color: "text-orange-400", bg: "bg-orange-400/10 border-orange-400/20" };
+    if (percent <= 90) return { msg: "Warning! You're officially a digital hoarder.", color: "text-brand-rose", bg: "bg-brand-rose/10 border-brand-rose/20" };
+    return { msg: "Critical condition! Your PC is literally suffocating.", color: "text-red-500", bg: "bg-red-500/10 border-red-500/20" };
+  };
+
+  const diskStatus = getDiskStatusMessage(diskPercentage);
+
   return (
     <motion.div
       initial={{ opacity: 0, y: 15 }}
@@ -213,9 +228,9 @@ export default function Dashboard() {
           <h2 className="text-xl font-bold tracking-tight text-gray-200">Storage Analytics Dashboard</h2>
           <p className="text-xs text-gray-400 mt-0.5">Designed with multiple protection layers to minimize accidental system damage.</p>
         </div>
-        <div className="flex items-center gap-1.5 bg-brand-green/10 border border-brand-green/20 px-3 py-1.5 rounded-lg text-xs font-semibold text-brand-green">
-          <ShieldCheck className="h-4 w-4" />
-          <span>System Status: Hardened &amp; Shielded</span>
+        <div className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold border ${diskStatus.bg} ${diskStatus.color}`}>
+          {diskPercentage > 80 ? <ShieldAlert className="h-4 w-4" /> : <ShieldCheck className="h-4 w-4" />}
+          <span>{diskStatus.msg}</span>
         </div>
       </div>
 

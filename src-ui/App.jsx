@@ -1,5 +1,5 @@
-import React from 'react';
-import { BrowserRouter, HashRouter, Routes, Route, Navigate, Outlet } from 'react-router-dom';
+import React, { useState, useEffect } from 'react';
+import { BrowserRouter, HashRouter, Routes, Route, Navigate, Outlet, useLocation } from 'react-router-dom';
 import { ShieldAlert, Cpu, AlertTriangle, Loader2 } from 'lucide-react';
 import { useAppStore } from './store/useAppStore';
 import Dashboard from './views/Dashboard';
@@ -21,6 +21,44 @@ function getOS() {
   if (ua.includes('android')) return 'Android';
   if (ua.includes('iphone') || ua.includes('ipad')) return 'iOS';
   return 'Unknown OS';
+}
+
+function PageTransitionLoader({ children }) {
+  const isNavigating = useAppStore(state => 
+    state.uninstallerStatus === 'loading' || 
+    state.startupStatus === 'loading'
+  );
+
+  return (
+    <div className="flex-1 flex flex-col overflow-hidden relative">
+      <AnimatePresence>
+        {isNavigating && (
+          <motion.div 
+            initial={{ opacity: 0 }} 
+            animate={{ opacity: 1 }} 
+            exit={{ opacity: 0 }} 
+            className="absolute inset-0 z-50 flex flex-col items-center justify-center bg-brand-darkest text-gray-100"
+          >
+            <div className="relative h-16 w-16 flex items-center justify-center mb-5">
+              <div className="absolute inset-0 rounded-full border-2 border-brand-accent/20 animate-pulse" />
+              <motion.div
+                animate={{ rotate: 360 }}
+                transition={{ repeat: Infinity, duration: 1.2, ease: 'linear' }}
+                className="absolute inset-0 rounded-full border-2 border-t-brand-accent border-r-transparent border-b-transparent border-l-transparent"
+              />
+              <Cpu className="h-6 w-6 text-brand-accent animate-pulse" />
+            </div>
+            <h2 className="text-sm font-bold text-gray-200 tracking-wide">Fetching Data...</h2>
+            <p className="text-[10px] text-gray-500 font-mono mt-1.5 uppercase tracking-widest">No-Cache Mode Active</p>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
+      <div className={`flex-1 flex flex-col overflow-hidden transition-opacity duration-300 ${isNavigating ? 'opacity-0 pointer-events-none' : 'opacity-100'}`}>
+        {children}
+      </div>
+    </div>
+  );
 }
 
 function AppLayout() {
@@ -69,7 +107,9 @@ function AppLayout() {
         ) : (
           /* Render Active Panel views with secure error boundaries */
           <ErrorBoundary>
-            <Outlet />
+            <PageTransitionLoader>
+              <Outlet />
+            </PageTransitionLoader>
           </ErrorBoundary>
         )}
       </div>

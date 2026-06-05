@@ -30,6 +30,22 @@ function createWindow() {
     }
   });
 
+  // Strict caching disable for entire session
+  const session = mainWindow.webContents.session;
+  
+  // Force HTTP headers to never cache
+  session.webRequest.onBeforeSendHeaders((details, callback) => {
+    details.requestHeaders['Cache-Control'] = 'no-store, no-cache, must-revalidate, proxy-revalidate, max-age=0';
+    details.requestHeaders['Pragma'] = 'no-cache';
+    details.requestHeaders['Expires'] = '0';
+    callback({ requestHeaders: details.requestHeaders });
+  });
+
+  // Purge any existing cache immediately on boot
+  session.clearCache().then(() => {
+    console.log("Application cache cleared to prevent data buildup.");
+  });
+
   // Apply Security Hardening (CSP & Navigation overrides)
   applySecurityHeaders();
   enforceWindowHarden(mainWindow);

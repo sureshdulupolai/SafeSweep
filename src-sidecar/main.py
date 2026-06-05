@@ -897,7 +897,7 @@ def run_http_server():
 # --- MAIN LOOP SUBSYSTEM ---
 
 def main():
-    logger.info("AI Smart PC Cleaner sidecar initialized successfully.")
+    logger.info("Smart PC Cleaner sidecar initialized successfully.")
     
     # Spawn background HTTP API server to let standard browsers fetch real PC metrics
     threading.Thread(target=run_http_server, daemon=True).start()

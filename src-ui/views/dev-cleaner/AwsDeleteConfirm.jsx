@@ -2,14 +2,14 @@ import React, { useState } from 'react';
 import { useDevCleanerStore } from '../../store/useDevCleanerStore';
 import { ShieldAlert, Trash2, CheckCircle } from 'lucide-react';
 
-export default function AwsDeleteConfirm() {
+export default function AwsDeleteConfirm({ checkedEnvs = [] }) {
   const [confirmText, setConfirmText] = useState('');
   const deleteOldEnvs = useDevCleanerStore((state) => state.deleteOldEnvs);
   const isDeleting = useDevCleanerStore((state) => state.isDeleting);
   const devCaches = useDevCleanerStore((state) => state.devCaches);
   const resetStore = useDevCleanerStore((state) => state.resetStore);
   
-  const selectedPaths = devCaches.filter(c => c.is_python_env).map(c => c.path);
+  const selectedPaths = checkedEnvs.length > 0 ? checkedEnvs : devCaches.filter(c => c.is_python_env).map(c => c.path);
   
   const handleConfirm = () => {
     if (confirmText === 'delete') {

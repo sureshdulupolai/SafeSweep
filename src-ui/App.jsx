@@ -12,6 +12,16 @@ import { motion, AnimatePresence } from 'framer-motion';
 const isElectron = navigator.userAgent.toLowerCase().includes('electron');
 const Router = isElectron ? HashRouter : BrowserRouter;
 
+function getOS() {
+  const ua = window.navigator.userAgent.toLowerCase();
+  if (ua.includes('windows') || ua.includes('win32') || ua.includes('win64')) return 'Windows';
+  if (ua.includes('mac')) return 'macOS';
+  if (ua.includes('linux')) return 'Linux';
+  if (ua.includes('android')) return 'Android';
+  if (ua.includes('iphone') || ua.includes('ipad')) return 'iOS';
+  return 'Unknown OS';
+}
+
 function AppLayout() {
   const serviceWarning = useAppStore((state) => state.serviceWarning);
   const serviceError = useAppStore((state) => state.serviceError);
@@ -67,6 +77,25 @@ function AppLayout() {
 }
 
 export default function App() {
+  const currentOS = getOS();
+  
+  if (currentOS !== 'Windows') {
+    return (
+      <div className="flex h-screen w-screen bg-brand-darkest text-gray-100 flex-col items-center justify-center p-6 text-center font-sans">
+        <div className="h-20 w-20 rounded-full bg-brand-rose/10 flex items-center justify-center mb-6 border border-brand-rose/20 shadow-lg shadow-brand-rose/5">
+          <ShieldAlert className="h-10 w-10 text-brand-rose" />
+        </div>
+        <h1 className="text-2xl font-bold text-gray-100 mb-3">Unsupported Operating System</h1>
+        <p className="text-sm text-gray-400 max-w-md leading-relaxed">
+          SafeSweep is a powerful system utility exclusively designed for <b>Windows PCs</b>. 
+        </p>
+        <p className="text-sm text-gray-400 max-w-md leading-relaxed mt-2">
+          Your current device appears to be running <span className="font-mono text-brand-accent px-1.5 py-0.5 bg-brand-accent/10 rounded">{currentOS}</span>, which is not supported.
+        </p>
+      </div>
+    );
+  }
+
   const isSystemLoading = useAppStore((state) => state.isSystemLoading);
   const loadingSteps = useAppStore((state) => state.loadingSteps);
 

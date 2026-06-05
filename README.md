@@ -2,6 +2,9 @@
 
 > A premium, offline-first, and safety-focused Windows desktop utility for intelligent system cleaning and developer environment management.
 
+> [!WARNING]
+> **Windows Exclusive:** SafeSweep deeply integrates with the Windows OS kernel, NTFS filesystem, and Windows Management Instrumentation (WMI). It is **NOT** supported on macOS, Linux, Android, or iOS.
+
 SafeSweep is built with a dual-engine architecture, combining the fluid UI capabilities of React/Electron with the raw performance and low-level system access of a Python sidecar backend. It is designed to clean junk files safely and specifically tackle the massive disk bloat caused by scattered developer environments (`node_modules`, `venv`, `target`, etc.).
 
 ---

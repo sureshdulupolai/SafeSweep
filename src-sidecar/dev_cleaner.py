@@ -132,7 +132,19 @@ class DevScanningTask:
                                     is_python_env = False
                                     is_valid = True
                                     
-                                    if self.language == 'python':
+                                    # If language is 'all', determine the context based on the folder name
+                                    check_lang = self.language
+                                    if check_lang == 'all':
+                                        if entry.name in ["venv", "env", ".env", "virtualenv", "anaconda3", "miniconda3"]:
+                                            check_lang = 'python'
+                                        elif entry.name == 'node_modules':
+                                            check_lang = 'node'
+                                        elif entry.name == 'target':
+                                            check_lang = 'rust'
+                                        elif entry.name in [".gradle", ".m2"]:
+                                            check_lang = 'java'
+                                    
+                                    if check_lang == 'python':
                                         is_valid = False
                                         # Strict check for Python environments
                                         if os.path.exists(os.path.join(full_path, "pyvenv.cfg")) or \
@@ -141,7 +153,7 @@ class DevScanningTask:
                                             is_valid = True
                                             is_python_env = True
                                             
-                                    elif self.language == 'node':
+                                    elif check_lang == 'node':
                                         if entry.name == 'node_modules':
                                             is_valid = False
                                             # Strict check for Node.js environments
@@ -149,12 +161,22 @@ class DevScanningTask:
                                             if os.path.exists(os.path.join(parent_dir, "package.json")):
                                                 is_valid = True
                                                 
-                                    elif self.language == 'rust':
+                                    elif check_lang == 'rust':
                                         if entry.name == 'target':
                                             is_valid = False
                                             # Strict check for Rust environments
                                             parent_dir = os.path.dirname(full_path)
                                             if os.path.exists(os.path.join(parent_dir, "Cargo.toml")):
+                                                is_valid = True
+                                                
+                                    elif check_lang == 'java':
+                                        if entry.name in ['.gradle', '.m2']:
+                                            # Usually global caches, just accept them or check if it's really a java cache
+                                            pass
+                                        elif entry.name == 'target':
+                                            is_valid = False
+                                            parent_dir = os.path.dirname(full_path)
+                                            if os.path.exists(os.path.join(parent_dir, "pom.xml")):
                                                 is_valid = True
 
                                     if is_valid:
@@ -309,7 +331,19 @@ class DevCleanerService:
         master_list_lock = threading.Lock()
         
         def analyze_single_env(path):
-            if language == "node":
+            # Determine actual language context if 'all' is selected
+            actual_lang = language
+            if language == 'all':
+                if path.endswith('node_modules'):
+                    actual_lang = 'node'
+                elif path.endswith('target') and os.path.exists(os.path.join(os.path.dirname(path), 'Cargo.toml')):
+                    actual_lang = 'rust'
+                elif path.endswith('.gradle') or path.endswith('.m2') or (path.endswith('target') and os.path.exists(os.path.join(os.path.dirname(path), 'pom.xml'))):
+                    actual_lang = 'java'
+                else:
+                    actual_lang = 'python'
+
+            if actual_lang == "node":
                 # For node, look for package.json in the parent directory of node_modules
                 # path is like C:\app\node_modules, so parent is C:\app
                 parent_dir = os.path.dirname(path)
@@ -366,6 +400,11 @@ class DevCleanerService:
                                         master_list[pkg][ver].add(path)
                     except Exception as e:
                         logger.error(f"Error parsing {cargo_toml_path}", {"error": str(e)})
+            elif actual_lang == "java":
+                # Java dependencies are deeply nested in .gradle or .m2, or pom.xml
+                # A simple scan would be too heavy. We can just append the project name itself 
+                # as a placeholder for now, or just leave it empty if we don't have a fast parser.
+                pass
             else:
                 # Default python logic
                 site_packages = os.path.join(path, "Lib", "site-packages")

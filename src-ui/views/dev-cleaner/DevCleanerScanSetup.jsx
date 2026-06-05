@@ -1,5 +1,5 @@
-import React from 'react';
-import { Search, Loader2, Plus, X } from 'lucide-react';
+import React, { useState } from 'react';
+import { Search, Loader2, Plus, X, Info } from 'lucide-react';
 
 export default function DevCleanerScanSetup({
   isScanning,
@@ -23,8 +23,64 @@ export default function DevCleanerScanSetup({
   handleScan,
   cancelScan
 }) {
+  const [showHelp, setShowHelp] = useState(false);
+
   return (
-    <div className="glass-card p-6 border border-brand-border flex flex-col items-center justify-center text-center space-y-4">
+    <div className="glass-card p-6 border border-brand-border flex flex-col items-center justify-center text-center space-y-4 relative overflow-hidden">
+      
+      {/* Help Button */}
+      <button 
+        onClick={() => setShowHelp(true)}
+        className="absolute top-4 right-4 text-gray-500 hover:text-brand-accent transition-colors"
+        title="How does this work?"
+      >
+        <Info className="w-5 h-5" />
+      </button>
+
+      {/* Help Modal Overlay */}
+      {showHelp && (
+        <div className="absolute inset-0 z-50 bg-brand-dark/95 backdrop-blur-sm p-6 flex flex-col text-left overflow-y-auto border border-brand-accent/30 rounded-xl">
+          <div className="flex justify-between items-center mb-4 border-b border-gray-800 pb-3">
+            <h3 className="text-lg font-bold text-white flex items-center gap-2">
+              <Info className="w-5 h-5 text-brand-accent" />
+              How Scanning Works
+            </h3>
+            <button onClick={() => setShowHelp(false)} className="text-gray-400 hover:text-white">
+              <X className="w-5 h-5" />
+            </button>
+          </div>
+          
+          <div className="space-y-4 text-sm text-gray-300">
+            <div>
+              <strong className="text-brand-accent block mb-1">Scan Target Area:</strong>
+              <p>• <b>Full PC Scan:</b> Scans your entire C:\ drive. This is extremely thorough but can take several minutes depending on your drive speed.</p>
+              <p>• <b>Specific Folders:</b> Only scans the folders you provide. This is lightning fast (often under 5 seconds) and highly recommended if you know where your projects live (e.g., your Desktop or Documents folder).</p>
+            </div>
+            
+            <div>
+              <strong className="text-brand-accent block mb-1">Programming Language:</strong>
+              <p>Choosing a specific language makes the scan faster and more accurate. For example, if you pick Python, it strictly looks for valid Python environments (like venv or conda) containing python executables. Choosing "All Languages" will look for everything but might take slightly longer.</p>
+            </div>
+            
+            <div>
+              <strong className="text-brand-accent block mb-1">Custom Environment Names:</strong>
+              <p>By default, we look for standard names like <code className="bg-black/30 px-1 rounded">node_modules</code>, <code className="bg-black/30 px-1 rounded">venv</code>, or <code className="bg-black/30 px-1 rounded">target</code>. If you name your environments something unique (e.g., <code className="bg-black/30 px-1 rounded">my_django_env</code>), you MUST add it here so the scanner knows to look for it.</p>
+            </div>
+            
+            <div className="bg-brand-accent/10 p-3 rounded border border-brand-accent/20 text-xs">
+              <strong>💡 Pro Tip:</strong> For the absolute fastest experience, choose "Specific Folders", add your main Projects folder, and select your specific programming language.
+            </div>
+          </div>
+          
+          <button 
+            onClick={() => setShowHelp(false)}
+            className="mt-6 w-full bg-gray-800 hover:bg-gray-700 text-white py-2 rounded-lg transition-colors font-medium"
+          >
+            Got it, let's scan!
+          </button>
+        </div>
+      )}
+
       <div className="h-16 w-16 bg-brand-accent/10 rounded-full flex items-center justify-center mb-2">
         <Search className="h-8 w-8 text-brand-accent" />
       </div>

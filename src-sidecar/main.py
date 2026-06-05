@@ -36,6 +36,52 @@ def rpc_notify(method, params):
     }
     sys.stdout.write(json.dumps(packet) + "\n")
     sys.stdout.flush()
+# Global variables for caching hardware health
+PHYSICAL_BATTERY_HEALTH = "Calculating..."
+
+def _fetch_physical_battery_health():
+    global PHYSICAL_BATTERY_HEALTH
+    try:
+        import subprocess, tempfile, re
+        tmp_dir = tempfile.gettempdir()
+        report_path = os.path.join(tmp_dir, 'battery_report_telemetry.xml')
+        # Use CREATE_NO_WINDOW = 0x08000000 to prevent console flashes
+        subprocess.run(
+            ['powercfg', '/batteryreport', '/output', report_path, '/xml'], 
+            capture_output=True, 
+            creationflags=0x08000000
+        )
+        
+        if os.path.exists(report_path):
+            with open(report_path, 'r', encoding='utf-8', errors='ignore') as f:
+                content = f.read()
+            
+            design_match = re.search(r'<DesignCapacity>(\d+)</DesignCapacity>', content)
+            full_match = re.search(r'<FullChargeCapacity>(\d+)</FullChargeCapacity>', content)
+            
+            if design_match and full_match:
+                design = int(design_match.group(1))
+                full = int(full_match.group(1))
+                if design > 0:
+                    health_pct = min(100, round((full / design) * 100))
+                    PHYSICAL_BATTERY_HEALTH = f"{health_pct}%"
+                else:
+                    PHYSICAL_BATTERY_HEALTH = "Unknown"
+            else:
+                PHYSICAL_BATTERY_HEALTH = "No Battery"
+            
+            # Clean up
+            try:
+                os.remove(report_path)
+            except Exception: pass
+        else:
+            PHYSICAL_BATTERY_HEALTH = "Unknown"
+    except Exception as e:
+        PHYSICAL_BATTERY_HEALTH = "Error"
+        logger.error("Failed to fetch physical battery health", {"error": str(e)})
+
+# Start the fetcher thread immediately
+threading.Thread(target=_fetch_physical_battery_health, daemon=True).start()
 
 DevCleanerService(dispatcher, rpc_notify)
 
@@ -357,13 +403,10 @@ def handle_disk_space(params):
             bat = psutil.sensors_battery()
             if bat is None:
                 battery_percent = "100"
-                battery_health = "AC Power"
             else:
                 battery_percent = str(round(bat.percent))
-                battery_health = "Good" if bat.percent > 50 else ("Medium" if bat.percent > 20 else "Weak")
         except Exception:
             battery_percent = "N/A"
-            battery_health = "Unknown"
             
         return {
             "total": usage.total,
@@ -371,7 +414,7 @@ def handle_disk_space(params):
             "cpu": cpu,
             "ram": ram,
             "battery_percent": battery_percent,
-            "battery_health": battery_health,
+            "battery_health": PHYSICAL_BATTERY_HEALTH,
             "network": network,
             "disk_io": disk_io
         }

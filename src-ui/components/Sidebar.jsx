@@ -10,7 +10,7 @@ export default function Sidebar() {
   const menuItems = [
     { path: '/dashboard', name: 'Dashboard', icon: LayoutDashboard },
     { path: '/cleaner', name: 'Interactive Cleaner', icon: Trash2 },
-    { path: '/dev-cleaner', name: '6. Python Developer Cleaner', icon: Layers },
+    { path: '/dev-cleaner', name: 'Developer Cleaner', icon: Layers },
     { path: '/settings', name: 'Settings & Privacy', icon: Settings },
   ];
 
@@ -34,16 +34,15 @@ export default function Sidebar() {
         {menuItems.map((item) => {
           const Icon = item.icon;
           const isActive = location.pathname === item.path || (item.path === '/dashboard' && location.pathname === '/');
-          
+
           return (
             <NavLink
               key={item.path}
               to={item.path}
-              className={`w-full flex items-center gap-3 px-3 py-2 rounded-lg text-xs font-semibold tracking-wide transition-all border ${
-                isActive
+              className={`w-full flex items-center gap-3 px-3 py-2 rounded-lg text-xs font-semibold tracking-wide transition-all border ${isActive
                   ? 'bg-brand-accent/10 text-brand-accent border-brand-accent/25'
                   : 'text-gray-400 hover:bg-brand-card hover:text-white border-transparent'
-              }`}
+                }`}
             >
               <Icon className="h-4 w-4 flex-shrink-0" />
               <span>{item.name}</span>

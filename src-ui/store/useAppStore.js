@@ -62,7 +62,7 @@ export const useAppStore = create((set, get) => {
     deletedCount: 0,
     failedCount: 0,
     activeSimulation: null,
-    
+
     // Quick clean states
     quickCleanStatus: 'idle',
     quickCleanBytesFreed: 0,
@@ -90,6 +90,23 @@ export const useAppStore = create((set, get) => {
     deletedArchives: [],
     archivesBytesFreed: 0,
 
+    boostStatus: 'idle',
+    boostResults: null,
+
+    privacySweepStatus: 'idle',
+    privacySweepResults: null,
+
+    uninstallerApps: [],
+    uninstallerStatus: 'idle', // idle, loading, error
+
+    startupApps: [],
+    startupStatus: 'idle', // idle, loading, error
+
+    duplicatesScanStatus: 'idle',
+    duplicatesList: [],
+    deletedDuplicates: [],
+    duplicatesBytesFreed: 0,
+
 
     // System alerts from Watchdog
     serviceWarning: null,
@@ -116,14 +133,14 @@ export const useAppStore = create((set, get) => {
               const now = Date.now();
               const lastTime = state.lastHardwareTime || (now - 3000);
               const timeDiffSec = Math.max((now - lastTime) / 1000, 1);
-              
+
               const netSentSpeed = result.network ? (result.network.sent - (state.lastNetworkSent || result.network.sent)) / timeDiffSec : 0;
               const netRecvSpeed = result.network ? (result.network.recv - (state.lastNetworkRecv || result.network.recv)) / timeDiffSec : 0;
               const diskReadSpeed = result.disk_io ? (result.disk_io.read - (state.lastDiskRead || result.disk_io.read)) / timeDiffSec : 0;
               const diskWriteSpeed = result.disk_io ? (result.disk_io.write - (state.lastDiskWrite || result.disk_io.write)) / timeDiffSec : 0;
-              
-              return { 
-                diskSpace: { total: result.total, free: result.free }, 
+
+              return {
+                diskSpace: { total: result.total, free: result.free },
                 hardwareStats: {
                   cpu: result.cpu || 0,
                   ram: result.ram || 0,
@@ -139,7 +156,7 @@ export const useAppStore = create((set, get) => {
                 lastDiskRead: result.disk_io?.read,
                 lastDiskWrite: result.disk_io?.write,
                 lastHardwareTime: now,
-                isDiskLoading: false 
+                isDiskLoading: false
               };
             });
           })
@@ -211,7 +228,7 @@ export const useAppStore = create((set, get) => {
         } else {
           // In a regular browser - no Electron API available, check if local HTTP sidecar API is running!
           console.log("[SafeSweep] Running in browser. Checking if local backend API server is online on port 9988...");
-          
+
           const initialSteps = [
             { id: 'integrity', label: 'Verifying Security Middleware Shield...', status: 'active' },
             { id: 'disk', label: 'Querying C:\\ drive NTFS analytics...', status: 'pending' },
@@ -229,7 +246,7 @@ export const useAppStore = create((set, get) => {
             })
             .then(startupRes => {
               console.log("[SafeSweep API] Connected to live Python sidecar server! Fetching real dynamic PC metrics...");
-              
+
               // 1. Resolve startup
               set((state) => ({
                 exclusions: startupRes.custom_exclusions || [],
@@ -237,7 +254,7 @@ export const useAppStore = create((set, get) => {
                 defaultDesktop: startupRes.desktop || '',
                 loadingSteps: state.loadingSteps.map(s =>
                   s.id === 'integrity' ? { ...s, status: 'completed' } :
-                  s.id === 'disk' ? { ...s, status: 'active' } : s
+                    s.id === 'disk' ? { ...s, status: 'active' } : s
                 )
               }));
 
@@ -250,7 +267,7 @@ export const useAppStore = create((set, get) => {
                       diskSpace: { total: diskRes.total, free: diskRes.free },
                       loadingSteps: state.loadingSteps.map(s =>
                         s.id === 'disk' ? { ...s, status: 'completed' } :
-                        s.id === 'temp' ? { ...s, status: 'active' } : s
+                          s.id === 'temp' ? { ...s, status: 'active' } : s
                       )
                     }));
 
@@ -263,8 +280,8 @@ export const useAppStore = create((set, get) => {
                             dashboardStats: statsRes,
                             loadingSteps: state.loadingSteps.map(s =>
                               s.id === 'temp' ? { ...s, status: 'completed' } :
-                              s.id === 'browsers' ? { ...s, status: 'completed' } :
-                              s.id === 'recycle' ? { ...s, status: 'active' } : s
+                                s.id === 'browsers' ? { ...s, status: 'completed' } :
+                                  s.id === 'recycle' ? { ...s, status: 'active' } : s
                             )
                           }));
 
@@ -360,7 +377,7 @@ export const useAppStore = create((set, get) => {
             };
           });
           // Cleanup logic
-          
+
           if (wasCapped) {
             const currentScanPath = get().scanPath;
             if (currentScanPath) {
@@ -402,7 +419,7 @@ export const useAppStore = create((set, get) => {
             defaultDesktop: result.desktop || '',
             loadingSteps: state.loadingSteps.map(s =>
               s.id === 'integrity' ? { ...s, status: 'completed' } :
-              s.id === 'disk' ? { ...s, status: 'active' } : s
+                s.id === 'disk' ? { ...s, status: 'active' } : s
             )
           }));
           // After startup, fire all live data fetches
@@ -418,7 +435,7 @@ export const useAppStore = create((set, get) => {
           set((state) => {
             const nextSteps = state.loadingSteps.map(s =>
               s.id === 'disk' ? { ...s, status: 'completed' } :
-              s.id === 'temp' ? { ...s, status: 'active' } : s
+                s.id === 'temp' ? { ...s, status: 'active' } : s
             );
             const allDone = nextSteps.every(s => s.status === 'completed');
             return {
@@ -436,8 +453,8 @@ export const useAppStore = create((set, get) => {
           set((state) => {
             const nextSteps = state.loadingSteps.map(s =>
               s.id === 'temp' ? { ...s, status: 'completed' } :
-              s.id === 'browsers' ? { ...s, status: 'completed' } :
-              s.id === 'recycle' ? { ...s, status: 'active' } : s
+                s.id === 'browsers' ? { ...s, status: 'completed' } :
+                  s.id === 'recycle' ? { ...s, status: 'active' } : s
             );
             const allDone = nextSteps.every(s => s.status === 'completed');
             return {
@@ -529,7 +546,7 @@ export const useAppStore = create((set, get) => {
             };
           });
           // Cleanup logic
-          
+
           if (wasCapped) {
             const currentScanPath = get().scanPath;
             if (currentScanPath) {
@@ -556,12 +573,12 @@ export const useAppStore = create((set, get) => {
 
         // empty folders delete response
         if (result.deleted !== undefined && result.failed !== undefined && result.status === undefined && result.total_freed === undefined) {
-           set((state) => ({ 
-             deletedEmptyFolders: result.deleted || [],
-             emptyFoldersList: state.emptyFoldersList.filter(f => !(result.deleted || []).includes(f)),
-             deleteStatus: 'completed' 
-           }));
-           return;
+          set((state) => ({
+            deletedEmptyFolders: result.deleted || [],
+            emptyFoldersList: state.emptyFoldersList.filter(f => !(result.deleted || []).includes(f)),
+            deleteStatus: 'completed'
+          }));
+          return;
         }
 
         // old downloads scan response
@@ -572,19 +589,19 @@ export const useAppStore = create((set, get) => {
 
         // old downloads delete response
         if (result.deleted !== undefined && result.failed !== undefined && result.total_freed !== undefined && get().deleteStatus !== 'idle') {
-           set((state) => ({ 
-             deletedOldDownloads: result.deleted || [],
-             oldDownloadsBytesFreed: result.total_freed || 0,
-             oldDownloadsList: state.oldDownloadsList.filter(f => !(result.deleted || []).includes(f.path)),
-             
-             // Same response is used for Archives
-             deletedArchives: result.deleted || [],
-             archivesBytesFreed: result.total_freed || 0,
-             archivesList: state.archivesList.filter(f => !(result.deleted || []).includes(f.path)),
-             
-             deleteStatus: 'completed' 
-           }));
-           return;
+          set((state) => ({
+            deletedOldDownloads: result.deleted || [],
+            oldDownloadsBytesFreed: result.total_freed || 0,
+            oldDownloadsList: state.oldDownloadsList.filter(f => !(result.deleted || []).includes(f.path)),
+
+            // Same response is used for Archives
+            deletedArchives: result.deleted || [],
+            archivesBytesFreed: result.total_freed || 0,
+            archivesList: state.archivesList.filter(f => !(result.deleted || []).includes(f.path)),
+
+            deleteStatus: 'completed'
+          }));
+          return;
         }
 
         // services get response
@@ -621,8 +638,8 @@ export const useAppStore = create((set, get) => {
 
         // system.quick_clean response
         if (result.status === 'completed' && result.bytes_freed !== undefined) {
-          set({ 
-            quickCleanStatus: 'completed', 
+          set({
+            quickCleanStatus: 'completed',
             quickCleanBytesFreed: result.bytes_freed,
             quickCleanFilesDeleted: result.files_deleted || 0,
             quickCleanFilesSkipped: result.files_skipped || 0
@@ -651,7 +668,7 @@ export const useAppStore = create((set, get) => {
     },
 
     startScan: (targetPath, isReplenishing = false) => {
-      set((state) => ({ 
+      set((state) => ({
         scanPath: targetPath,
         scanStatus: 'scanning',
         scannedCount: 0,
@@ -717,12 +734,12 @@ export const useAppStore = create((set, get) => {
 
         const generated = [];
         const numFiles = Math.floor(Math.random() * 15) + 25;
-        
+
         for (let i = 0; i < numFiles; i++) {
           const template = fileTemplates[i % fileTemplates.length];
           const randomSuffix = Math.random().toString(36).substring(2, 8).toUpperCase();
           const fileName = `${template.name}_${randomSuffix}.${template.ext}`;
-          
+
           let filePath = path;
           if (i % 4 === 1) {
             filePath += "\\SystemCaches";
@@ -834,7 +851,7 @@ export const useAppStore = create((set, get) => {
         .filter(f => !targets.includes(f.path))
         .map(f => f.path);
 
-      set((state) => ({ 
+      set((state) => ({
         deleteStatus: 'deleting',
         skippedPaths: [...state.skippedPaths, ...skipped]
       }));
@@ -869,7 +886,7 @@ export const useAppStore = create((set, get) => {
               };
             });
             get().fetchQuarantine();
-            
+
             if (wasCapped && scanPath) {
               setTimeout(() => {
                 get().startScan(scanPath, true);
@@ -893,10 +910,10 @@ export const useAppStore = create((set, get) => {
         if (deleted >= total) {
           deleted = total;
           clearInterval(interval);
-          
+
           const currentFiles = get().scannedFiles;
           const remainingFiles = currentFiles.filter(f => !targets.includes(f.path));
-          
+
           set({
             deleteStatus: 'completed',
             deletedCount: total,
@@ -904,19 +921,19 @@ export const useAppStore = create((set, get) => {
             scannedFiles: remainingFiles,
             activeSimulation: null
           });
-          
+
           const totalFreed = targets.reduce((acc, path) => {
             const fileObj = currentFiles.find(f => f.path === path);
             return acc + (fileObj ? fileObj.size : 0);
           }, 0);
-          
+
           set((state) => ({
             dashboardStats: {
               ...state.dashboardStats,
               temp_size_bytes: Math.max(0, state.dashboardStats.temp_size_bytes - totalFreed)
             }
           }));
-          
+
           if (wasCapped) {
             setTimeout(() => {
               get().startScan(get().scanPath || 'C:\\Users\\user\\Desktop', true);
@@ -950,8 +967,8 @@ export const useAppStore = create((set, get) => {
         fetchWithTimeout(`http://127.0.0.1:9988/api/quick_clean?target=${target}`, {}, 30000)
           .then(res => res.json())
           .then(result => {
-            set({ 
-              quickCleanStatus: 'completed', 
+            set({
+              quickCleanStatus: 'completed',
               quickCleanBytesFreed: result.bytes_freed || 0,
               quickCleanFilesDeleted: result.files_deleted || 0,
               quickCleanFilesSkipped: result.files_skipped || 0
@@ -1138,6 +1155,218 @@ export const useAppStore = create((set, get) => {
       }
     },
 
+    // Duplicate Finder operations
+    scanDuplicates: () => {
+      set({ duplicatesScanStatus: 'scanning', duplicatesList: [], deletedDuplicates: [], duplicatesBytesFreed: 0 });
+      if (window.api) {
+        window.api.sendRequest('duplicates:scan');
+      } else {
+        fetchWithTimeout('http://127.0.0.1:9988/api/duplicates/scan', {}, 600000)
+          .then(res => res.json())
+          .then(result => {
+            set({ duplicatesScanStatus: 'completed', duplicatesList: result.duplicates || [] });
+          })
+          .catch(() => {
+            set({ duplicatesScanStatus: 'error' });
+          });
+      }
+    },
+
+    deleteDuplicates: (targets) => {
+      set({ deleteStatus: 'deleting' });
+      if (window.api) {
+        window.api.sendRequest('duplicates:delete', { targets });
+      } else {
+        fetchWithTimeout('http://127.0.0.1:9988/api/duplicates/delete', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ targets })
+        }, 120000)
+          .then(res => res.json())
+          .then(result => {
+            set((state) => {
+              const newList = state.duplicatesList.map(group => ({
+                ...group,
+                files: group.files.filter(f => !(result.deleted || []).includes(f.path))
+              })).filter(group => group.files.length > 1);
+
+              return {
+                deletedDuplicates: result.deleted || [],
+                duplicatesBytesFreed: result.bytes_freed || 0,
+                duplicatesList: newList,
+                deleteStatus: 'completed'
+              };
+            });
+            if (result.failed && result.failed.length > 0) {
+              get().setServiceWarning(`Failed to delete ${result.failed.length} duplicate items.`);
+              setTimeout(() => get().setServiceWarning(''), 6000);
+            }
+          })
+          .catch(() => {
+            set({ deleteStatus: 'idle' });
+          });
+      }
+    },
+
+    // Game Booster operations
+    boostSystem: () => {
+      set({ boostStatus: 'boosting', boostResults: null });
+      if (window.api) {
+        window.api.sendRequest('system:boost');
+      } else {
+        fetchWithTimeout('http://127.0.0.1:9988/api/boost', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({})
+        }, 120000)
+          .then(res => res.json())
+          .then(result => {
+            set({ boostStatus: 'completed', boostResults: result });
+          })
+          .catch(() => {
+            set({ boostStatus: 'error' });
+          });
+      }
+    },
+
+    // Privacy Sweep operations
+    privacySweep: () => {
+      set({ privacySweepStatus: 'sweeping', privacySweepResults: null });
+      if (window.api) {
+        window.api.sendRequest('system:privacy_sweep');
+      } else {
+        fetchWithTimeout('http://127.0.0.1:9988/api/privacy_sweep', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({})
+        }, 60000)
+          .then(res => res.json())
+          .then(result => {
+            set({ privacySweepStatus: 'completed', privacySweepResults: result });
+          })
+          .catch(() => {
+            set({ privacySweepStatus: 'error' });
+          });
+      }
+    },
+
+    // Uninstaller operations
+    fetchInstalledApps: () => {
+      set({ uninstallerStatus: 'loading', uninstallerApps: [] });
+      if (window.api) {
+        window.api.sendRequest('uninstaller:list');
+      } else {
+        fetchWithTimeout('http://127.0.0.1:9988/api/uninstaller/list', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({})
+        }, 60000)
+          .then(res => res.json())
+          .then(result => {
+            set({ uninstallerStatus: 'completed', uninstallerApps: result.apps || [] });
+          })
+          .catch(() => {
+            set({ uninstallerStatus: 'error' });
+          });
+      }
+    },
+    uninstallApp: (uninstallString) => {
+      if (window.api) {
+        window.api.sendRequest('uninstaller:uninstall', { uninstall_string: uninstallString });
+      } else {
+        fetchWithTimeout('http://127.0.0.1:9988/api/uninstaller/uninstall', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ uninstall_string: uninstallString })
+        }, 10000);
+        // We don't wait for uninstall to finish as it usually launches an interactive uninstaller
+      }
+    },
+    cleanLeftovers: (appName) => {
+      return new Promise((resolve) => {
+        if (window.api) {
+          window.api.sendRequest('uninstaller:cleanLeftovers', { app_name: appName });
+          resolve({ status: 'completed', cleaned_paths: [], cleaned_registry: [] }); // simplistic mock for IPC
+        } else {
+          fetchWithTimeout('http://127.0.0.1:9988/api/uninstaller/clean_leftovers', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ app_name: appName })
+          }, 15000)
+            .then(res => res.json())
+            .then(result => resolve(result))
+            .catch(() => resolve({ status: 'error' }));
+        }
+      });
+    },
+
+    researchApp: (appName) => {
+      return new Promise((resolve) => {
+        if (window.api) {
+          window.api.sendRequest('uninstaller:research', { app_name: appName });
+          resolve({ found: false, description: 'Research feature requires HTTP API.' });
+        } else {
+          fetchWithTimeout('http://127.0.0.1:9988/api/uninstaller/research', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ app_name: appName })
+          }, 10000)
+            .then(res => res.json())
+            .then(result => resolve(result))
+            .catch(() => resolve({ found: false, description: 'Network error while fetching research.' }));
+        }
+      });
+    },
+
+    // Startup Manager operations
+    fetchStartupApps: () => {
+      set({ startupStatus: 'loading', startupApps: [] });
+      if (window.api) {
+        window.api.sendRequest('startup:list');
+      } else {
+        fetchWithTimeout('http://127.0.0.1:9988/api/startup/list', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({})
+        }, 10000)
+          .then(res => res.json())
+          .then(result => {
+            set({ startupStatus: 'completed', startupApps: result.apps || [] });
+          })
+          .catch(() => {
+            set({ startupStatus: 'error' });
+          });
+      }
+    },
+
+    toggleStartupApp: (name, enable) => {
+      return new Promise((resolve) => {
+        if (window.api) {
+          window.api.sendRequest('startup:toggle', { name, enable });
+          resolve({ success: true });
+        } else {
+          fetchWithTimeout('http://127.0.0.1:9988/api/startup/toggle', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ name, enable })
+          }, 10000)
+            .then(res => res.json())
+            .then(result => {
+              if (result.success) {
+                // Optimistically update UI
+                set((state) => ({
+                  startupApps: state.startupApps.map(app => 
+                    app.name === name ? { ...app, enabled: enable } : app
+                  )
+                }));
+              }
+              resolve(result);
+            })
+            .catch(() => resolve({ success: false }));
+        }
+      });
+    },
+
     // Quarantine restorations
     restoreQuarantineItem: (itemId, destination = null) => {
       if (window.api) {
@@ -1173,25 +1402,25 @@ export const useAppStore = create((set, get) => {
     // Timed preview simulation for browsers with offline background services
     _runMockSimulation: (initialSteps) => {
       set({ loadingSteps: initialSteps, isSystemLoading: true, isDiskLoading: true, isStatsLoading: true, isRecycleLoading: true });
-      
+
       setTimeout(() => {
         set((state) => ({
           loadingSteps: state.loadingSteps.map(s =>
             s.id === 'integrity' ? { ...s, status: 'completed' } :
-            s.id === 'disk' ? { ...s, status: 'active' } : s
+              s.id === 'disk' ? { ...s, status: 'active' } : s
           )
         }));
-        
+
         setTimeout(() => {
           set((state) => ({
             diskSpace: { total: 512110000000, free: 297022000000 },
             isDiskLoading: false,
             loadingSteps: state.loadingSteps.map(s =>
               s.id === 'disk' ? { ...s, status: 'completed' } :
-              s.id === 'temp' ? { ...s, status: 'active' } : s
+                s.id === 'temp' ? { ...s, status: 'active' } : s
             )
           }));
-          
+
           setTimeout(() => {
             set((state) => ({
               dashboardStats: {
@@ -1201,10 +1430,10 @@ export const useAppStore = create((set, get) => {
               },
               loadingSteps: state.loadingSteps.map(s =>
                 s.id === 'temp' ? { ...s, status: 'completed' } :
-                s.id === 'browsers' ? { ...s, status: 'active' } : s
+                  s.id === 'browsers' ? { ...s, status: 'active' } : s
               )
             }));
-            
+
             setTimeout(() => {
               set((state) => ({
                 dashboardStats: {
@@ -1215,10 +1444,10 @@ export const useAppStore = create((set, get) => {
                 isStatsLoading: false,
                 loadingSteps: state.loadingSteps.map(s =>
                   s.id === 'browsers' ? { ...s, status: 'completed' } :
-                  s.id === 'recycle' ? { ...s, status: 'active' } : s
+                    s.id === 'recycle' ? { ...s, status: 'active' } : s
                 )
               }));
-              
+
               setTimeout(() => {
                 set((state) => ({
                   recycleBinInfo: { size_bytes: 120930400, items_count: 42 },
@@ -1230,19 +1459,19 @@ export const useAppStore = create((set, get) => {
                     s.id === 'recycle' ? { ...s, status: 'completed' } : s
                   )
                 }));
-                
+
                 setTimeout(() => {
                   set({ isSystemLoading: false });
                 }, 400);
-                
+
               }, 400);
-              
+
             }, 400);
-            
+
           }, 400);
-          
+
         }, 400);
-        
+
       }, 400);
     }
   };

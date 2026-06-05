@@ -1,7 +1,7 @@
 import React from 'react';
 import { NavLink, useLocation } from 'react-router-dom';
 import { useAppStore } from '../store/useAppStore';
-import { LayoutDashboard, Trash2, Layers, Archive, Settings, ShieldAlert, Cpu } from 'lucide-react';
+import { LayoutDashboard, Trash2, Layers, Archive, Settings, ShieldAlert, Cpu, PackageMinus } from 'lucide-react';
 
 export default function Sidebar() {
   const developerMode = useAppStore((state) => state.developerMode);
@@ -10,6 +10,7 @@ export default function Sidebar() {
   const menuItems = [
     { path: '/dashboard', name: 'Dashboard', icon: LayoutDashboard },
     { path: '/cleaner', name: 'Interactive Cleaner', icon: Trash2 },
+    { path: '/uninstaller', name: 'App Uninstaller', icon: PackageMinus },
     { path: '/dev-cleaner', name: 'Developer Cleaner', icon: Layers },
     { path: '/settings', name: 'Settings & Privacy', icon: Settings },
   ];

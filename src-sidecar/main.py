@@ -763,6 +763,64 @@ def handle_delete_archives(params):
     targets = params.get("targets", [])
     return delete_archives(targets)
 
+from duplicate_finder import scan_duplicates, delete_duplicates
+
+@dispatcher.register("system.scan_duplicates")
+def handle_scan_duplicates(params):
+    return {"duplicates": scan_duplicates()}
+
+@dispatcher.register("system.delete_duplicates")
+def handle_delete_duplicates(params):
+    targets = params.get("targets", [])
+    return delete_duplicates(targets)
+
+from performance_booster import boost_system
+
+@dispatcher.register("system.boost")
+def handle_boost_system(params):
+    return boost_system()
+
+from privacy_manager import clear_privacy_traces
+
+@dispatcher.register("system.privacy_sweep")
+def handle_privacy_sweep(params):
+    return clear_privacy_traces()
+
+from uninstaller_engine import get_installed_apps, uninstall_app, clean_leftovers, research_app
+
+@dispatcher.register("uninstaller.list")
+def handle_uninstaller_list(params):
+    apps = get_installed_apps()
+    return {"status": "completed", "apps": apps}
+
+@dispatcher.register("uninstaller.uninstall")
+def handle_uninstaller_uninstall(params):
+    uninstall_string = params.get("uninstall_string")
+    return uninstall_app(uninstall_string)
+
+@dispatcher.register("uninstaller.clean_leftovers")
+def handle_uninstaller_clean_leftovers(params):
+    app_name = params.get("app_name")
+    return clean_leftovers(app_name)
+
+@dispatcher.register("uninstaller.research")
+def handle_uninstaller_research(params):
+    app_name = params.get("app_name")
+    return research_app(app_name)
+
+from startup_manager import get_startup_apps, toggle_startup_app
+
+@dispatcher.register("startup.list")
+def handle_startup_list(params):
+    apps = get_startup_apps()
+    return {"status": "completed", "apps": apps}
+
+@dispatcher.register("startup.toggle")
+def handle_startup_toggle(params):
+    name = params.get("name")
+    enable = params.get("enable")
+    return toggle_startup_app(name, enable)
+
 @dispatcher.register("system.shutdown")
 def handle_shutdown(params):
     logger.info("Received sidecar shutdown command. Ending process cleanly.")
@@ -897,6 +955,9 @@ class LocalCleanerHTTPServer(BaseHTTPRequestHandler):
                 elif endpoint == "archives/scan":
                     res = handle_scan_archives({})
                     self.write_response(res)
+                elif endpoint == "duplicates/scan":
+                    res = handle_scan_duplicates({})
+                    self.write_response(res)
                 else:
                     self.write_response({"error": "endpoint not found"})
             except Exception as e:
@@ -942,6 +1003,39 @@ class LocalCleanerHTTPServer(BaseHTTPRequestHandler):
                 elif endpoint == "archives/delete":
                     targets = data.get("targets", [])
                     res = handle_delete_archives({"targets": targets})
+                    self.write_response(res)
+                elif endpoint == "duplicates/delete":
+                    targets = data.get("targets", [])
+                    res = handle_delete_duplicates({"targets": targets})
+                    self.write_response(res)
+                elif endpoint == "boost":
+                    res = handle_boost_system({})
+                    self.write_response(res)
+                elif endpoint == "privacy_sweep":
+                    res = handle_privacy_sweep({})
+                    self.write_response(res)
+                elif endpoint == "uninstaller/list":
+                    res = handle_uninstaller_list({})
+                    self.write_response(res)
+                elif endpoint == "uninstaller/uninstall":
+                    uninstall_string = data.get("uninstall_string")
+                    res = handle_uninstaller_uninstall({"uninstall_string": uninstall_string})
+                    self.write_response(res)
+                elif endpoint == "uninstaller/clean_leftovers":
+                    app_name = data.get("app_name")
+                    res = handle_uninstaller_clean_leftovers({"app_name": app_name})
+                    self.write_response(res)
+                elif endpoint == "uninstaller/research":
+                    app_name = data.get("app_name")
+                    res = handle_uninstaller_research({"app_name": app_name})
+                    self.write_response(res)
+                elif endpoint == "startup/list":
+                    res = handle_startup_list({})
+                    self.write_response(res)
+                elif endpoint == "startup/toggle":
+                    name = data.get("name")
+                    enable = data.get("enable")
+                    res = handle_startup_toggle({"name": name, "enable": enable})
                     self.write_response(res)
                 elif endpoint == "rpc":
                     # Handle raw JSON-RPC payload from browser fallback

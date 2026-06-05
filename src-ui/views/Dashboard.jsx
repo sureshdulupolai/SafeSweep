@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { createPortal } from 'react-dom';
-import { ShieldCheck, HardDrive, RefreshCw, Layers, ShieldAlert, Cpu, Trash2, Loader2, AlertTriangle, X, FolderX, DownloadCloud, Activity, FileArchive } from 'lucide-react';
+import { ShieldCheck, HardDrive, RefreshCw, Layers, ShieldAlert, Cpu, Trash2, Loader2, AlertTriangle, X, FolderX, DownloadCloud, Activity, FileArchive, Copy, Rocket, Gauge } from 'lucide-react';
 import { useAppStore } from '../store/useAppStore';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useNavigate } from 'react-router-dom';
@@ -10,6 +10,10 @@ import OldDownloadsScanner from '../components/OldDownloadsScanner';
 import BackgroundServiceAdvisor from '../components/BackgroundServiceAdvisor';
 import ArchiveManager from '../components/ArchiveManager';
 import SuccessCard from '../components/SuccessCard';
+import DuplicateFinder from '../components/DuplicateFinder';
+import GameBoosterModal from '../components/GameBoosterModal';
+import PrivacySweeperModal from '../components/PrivacySweeperModal';
+import StartupManagerModal from '../components/StartupManagerModal';
 
 // Pulsing skeleton placeholder block
 function Skeleton({ className = '' }) {
@@ -63,6 +67,10 @@ export default function Dashboard() {
   const [isOldDownloadsScannerOpen, setIsOldDownloadsScannerOpen] = useState(false);
   const [isServicesAdvisorOpen, setIsServicesAdvisorOpen] = useState(false);
   const [isArchiveManagerOpen, setIsArchiveManagerOpen] = useState(false);
+  const [isDuplicateFinderOpen, setIsDuplicateFinderOpen] = useState(false);
+  const [isGameBoosterOpen, setIsGameBoosterOpen] = useState(false);
+  const [isPrivacySweeperOpen, setIsPrivacySweeperOpen] = useState(false);
+  const [isStartupManagerOpen, setIsStartupManagerOpen] = useState(false);
   const [isSuccessCardOpen, setIsSuccessCardOpen] = useState(false);
   const [successCardProps, setSuccessCardProps] = useState({});
 
@@ -72,6 +80,8 @@ export default function Dashboard() {
   const oldDownloadsBytesFreed = useAppStore(state => state.oldDownloadsBytesFreed);
   const deletedArchives = useAppStore(state => state.deletedArchives);
   const archivesBytesFreed = useAppStore(state => state.archivesBytesFreed);
+  const deletedDuplicates = useAppStore(state => state.deletedDuplicates);
+  const duplicatesBytesFreed = useAppStore(state => state.duplicatesBytesFreed);
 
   useEffect(() => {
     if (deleteStatus === 'completed') {
@@ -108,9 +118,20 @@ export default function Dashboard() {
            deletedList: deletedArchives
          });
          setIsSuccessCardOpen(true);
+      } else if (isDuplicateFinderOpen && deletedDuplicates.length > 0) {
+         setIsDuplicateFinderOpen(false);
+         setSuccessCardProps({
+           title: "Duplicates Cleaned",
+           subtitle: "Identical Files Permanently Eradicated",
+           itemsLabel: "Files Deleted",
+           freedBytes: duplicatesBytesFreed,
+           freedLabel: "Storage Freed",
+           deletedList: deletedDuplicates
+         });
+         setIsSuccessCardOpen(true);
       }
     }
-  }, [deleteStatus, deletedEmptyFolders, isEmptyFolderScannerOpen, isOldDownloadsScannerOpen, deletedOldDownloads, oldDownloadsBytesFreed, isArchiveManagerOpen, deletedArchives, archivesBytesFreed]);
+  }, [deleteStatus, deletedEmptyFolders, isEmptyFolderScannerOpen, isOldDownloadsScannerOpen, deletedOldDownloads, oldDownloadsBytesFreed, isArchiveManagerOpen, deletedArchives, archivesBytesFreed, isDuplicateFinderOpen, deletedDuplicates, duplicatesBytesFreed]);
 
   useEffect(() => {
     if (quickCleanStatus === 'completed' && modalState.isOpen && modalState.step === 'confirm') {
@@ -716,6 +737,58 @@ export default function Dashboard() {
                   badgeColor: 'text-purple-400 border-purple-400/30',
                   clickable: true,
                   onClick: () => setIsOldDownloadsScannerOpen(true)
+                },
+                {
+                  id: 'duplicates',
+                  label: 'Duplicate Finder',
+                  value: 'Scan Folders',
+                  rawBytes: 0,
+                  desc: 'Find identical files',
+                  icon: Copy,
+                  color: 'text-purple-400',
+                  glowColor: 'hover:border-purple-400/50',
+                  badgeColor: 'text-purple-400 border-purple-400/30',
+                  clickable: true,
+                  onClick: () => setIsDuplicateFinderOpen(true)
+                },
+                {
+                  id: 'game_booster',
+                  label: 'Game Booster',
+                  value: '1-Click Optimize',
+                  rawBytes: 0,
+                  desc: 'Max FPS & Flush RAM',
+                  icon: Rocket,
+                  color: 'text-cyan-400',
+                  glowColor: 'hover:border-cyan-400/50',
+                  badgeColor: 'text-cyan-400 border-cyan-400/30',
+                  clickable: true,
+                  onClick: () => setIsGameBoosterOpen(true)
+                },
+                {
+                  id: 'privacy_sweeper',
+                  label: 'Privacy Sweeper',
+                  value: 'Clean Traces',
+                  rawBytes: 0,
+                  desc: 'Clipboard, DNS, Recent',
+                  icon: ShieldCheck,
+                  color: 'text-brand-green',
+                  glowColor: 'hover:border-brand-green/50',
+                  badgeColor: 'text-brand-green border-brand-green/30',
+                  clickable: true,
+                  onClick: () => setIsPrivacySweeperOpen(true)
+                },
+                {
+                  id: 'startup_manager',
+                  label: 'Startup Manager',
+                  value: 'Boot Optimizer',
+                  rawBytes: 0,
+                  desc: 'Speed up PC startup',
+                  icon: Gauge,
+                  color: 'text-yellow-500',
+                  glowColor: 'hover:border-yellow-500/50',
+                  badgeColor: 'text-yellow-500 border-yellow-500/30',
+                  clickable: true,
+                  onClick: () => setIsStartupManagerOpen(true)
                 }
               ].map((stat, idx) => {
                 const isCleaningThis = modalState.targetId === stat.id && quickCleanStatus === 'cleaning';
@@ -818,11 +891,27 @@ export default function Dashboard() {
         isOpen={isArchiveManagerOpen} 
         onClose={() => setIsArchiveManagerOpen(false)} 
       />
+      <DuplicateFinder 
+        isOpen={isDuplicateFinderOpen} 
+        onClose={() => setIsDuplicateFinderOpen(false)} 
+      />
+      <GameBoosterModal
+        isOpen={isGameBoosterOpen}
+        onClose={() => setIsGameBoosterOpen(false)}
+      />
+      <PrivacySweeperModal
+        isOpen={isPrivacySweeperOpen}
+        onClose={() => setIsPrivacySweeperOpen(false)}
+      />
+      <StartupManagerModal
+        isOpen={isStartupManagerOpen}
+        onClose={() => setIsStartupManagerOpen(false)}
+      />
       <SuccessCard 
         isOpen={isSuccessCardOpen} 
         onClose={() => {
           setIsSuccessCardOpen(false);
-          useAppStore.setState({ deleteStatus: 'idle', deletedEmptyFolders: [], deletedOldDownloads: [], oldDownloadsBytesFreed: 0, deletedArchives: [], archivesBytesFreed: 0 });
+          useAppStore.setState({ deleteStatus: 'idle', deletedEmptyFolders: [], deletedOldDownloads: [], oldDownloadsBytesFreed: 0, deletedArchives: [], archivesBytesFreed: 0, deletedDuplicates: [], duplicatesBytesFreed: 0 });
         }} 
         {...successCardProps}
       />

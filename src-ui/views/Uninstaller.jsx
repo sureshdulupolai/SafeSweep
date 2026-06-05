@@ -25,21 +25,35 @@ export default function Uninstaller() {
   }, [fetchInstalledApps]);
 
   const filteredApps = useMemo(() => {
-    let result = uninstallerApps;
+    // 1. Double-layer security filter (Frontend blocking)
+    const forbiddenPublishers = ["microsoft", "google", "windows", "mozilla", "brave", "opera", "yandex", "apple"];
+    const forbiddenKeywords = ["chrome", "edge", "firefox", "brave", "opera", "safari", "browser"];
+    
+    let result = uninstallerApps.filter(app => {
+      const pub = app.publisher.toLowerCase();
+      const name = app.name.toLowerCase();
+      
+      // Block if publisher contains any forbidden string
+      if (forbiddenPublishers.some(fp => pub.includes(fp))) return false;
+      
+      // Block if app name contains any forbidden browser/core string
+      if (forbiddenKeywords.some(fk => name.includes(fk))) return false;
+      
+      return true;
+    });
 
+    // 2. Apply search query
     if (searchQuery.trim()) {
-      result = result.filter(app =>
-        app.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
+      result = result.filter(app => 
+        app.name.toLowerCase().includes(searchQuery.toLowerCase()) || 
         app.publisher.toLowerCase().includes(searchQuery.toLowerCase())
       );
     }
 
+    // 3. Apply size filter
     if (sizeFilter === 'large') {
-      // Greater than 1 GB (1,048,576 KB)
       result = result.filter(app => app.estimated_size_kb >= 1048576);
     } else if (sizeFilter === 'small') {
-      // Less than 1 GB, but exclude 0 or unknown to be safe (or include them?)
-      // Let's include everything strictly less than 1GB including 0
       result = result.filter(app => app.estimated_size_kb < 1048576);
     }
 

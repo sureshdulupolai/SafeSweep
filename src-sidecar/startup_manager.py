@@ -5,7 +5,7 @@ import os
 logger = logging.getLogger(__name__)
 
 def get_startup_apps():
-    """
+    r"""
     Reads startup applications from the registry.
     We check HKCU\Software\Microsoft\Windows\CurrentVersion\Run
     and HKCU\Software\Microsoft\Windows\CurrentVersion\Explorer\StartupApproved\Run
@@ -20,11 +20,12 @@ def get_startup_apps():
         for i in range(winreg.QueryInfoKey(run_key)[1]):
             try:
                 name, value, _ = winreg.EnumValue(run_key, i)
-                apps.append({
-                    "name": name,
-                    "command": value,
-                    "enabled": True # Default to True
-                })
+                if name and value and str(name).strip() != "" and str(value).strip() != "":
+                    apps.append({
+                        "name": str(name).strip(),
+                        "command": str(value).strip(),
+                        "enabled": True # Default to True
+                    })
             except OSError:
                 pass
         winreg.CloseKey(run_key)
@@ -57,7 +58,7 @@ def get_startup_apps():
     return apps
 
 def toggle_startup_app(name, enable):
-    """
+    r"""
     Toggles a startup app by writing to StartupApproved\Run
     """
     approved_path = r"Software\Microsoft\Windows\CurrentVersion\Explorer\StartupApproved\Run"

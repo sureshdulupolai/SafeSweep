@@ -64,10 +64,19 @@ def get_installed_apps():
                     publisher_lower = publisher.lower()
                     name_lower = display_name.lower()
                     
-                    # Safety: Hide critical system/hardware apps and PWAs
-                    if "microsoft" in publisher_lower:
+                    # Safety: Hide critical system/hardware apps, OS vendors, and Browsers
+                    forbidden_publishers = [
+                        "microsoft", "google", "windows", "mozilla", 
+                        "brave", "opera", "yandex", "apple"
+                    ]
+                    if any(fp in publisher_lower for fp in forbidden_publishers):
                         continue
-                    if "google\\chrome" in publisher_lower or "google inc" in publisher_lower:
+                        
+                    forbidden_app_keywords = [
+                        "chrome", "edge", "firefox", "brave", "opera", 
+                        "safari", "browser"
+                    ]
+                    if any(keyword in name_lower for keyword in forbidden_app_keywords):
                         continue
                         
                     # Comprehensive blacklist for critical vendors (Hardware/Drivers)

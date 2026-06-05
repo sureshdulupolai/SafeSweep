@@ -2,8 +2,6 @@
 
 > A premium, offline-first, and safety-focused Windows desktop utility for intelligent system cleaning and developer environment management.
 
-![SafeSweep Banner](https://via.placeholder.com/800x200.png?text=SafeSweep+-+Intelligent+PC+Cleaner)
-
 SafeSweep is built with a dual-engine architecture, combining the fluid UI capabilities of React/Electron with the raw performance and low-level system access of a Python sidecar backend. It is designed to clean junk files safely and specifically tackle the massive disk bloat caused by scattered developer environments (`node_modules`, `venv`, `target`, etc.).
 
 ---

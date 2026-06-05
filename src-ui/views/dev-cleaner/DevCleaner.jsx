@@ -197,21 +197,11 @@ export default function DevCleaner() {
     scanCaches(pathsToScan, selectedLanguage, customTargets);
   };
 
-  useEffect(() => {
-    if (devCaches.length > 0 && !isScanning) {
-      const timer = setTimeout(() => {
-        if (checkedEnvs.length > 0) {
-          analyzeEnvs(checkedEnvs, selectedLanguage);
-        } else {
-          useDevCleanerStore.setState({ masterList: [] });
-        }
-      }, 300);
-      return () => clearTimeout(timer);
+  const handleProceedToAnalyze = () => {
+    // Only analyze the checked envs
+    if (checkedEnvs.length > 0) {
+      analyzeEnvs(checkedEnvs, selectedLanguage);
     }
-  }, [checkedEnvs, isScanning, selectedLanguage]);
-
-  const handleProceedToDelete = () => {
-    useDevCleanerStore.setState({ step: 'delete' });
   };
 
   const totalSpace = devCaches.filter(c => checkedEnvs.includes(c.path)).reduce((acc, c) => acc + c.size, 0);
@@ -277,35 +267,59 @@ export default function DevCleaner() {
             />
 
             {devCaches.length > 0 && !isScanning && (
-              <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mt-8">
-                <div className="space-y-6">
-                  <h3 className="text-lg font-bold text-white">Found Environments</h3>
-                  <DevCleanerFoundEnvs 
-                    checkedEnvs={checkedEnvs}
-                    handleToggleCheck={handleToggleCheck}
-                    totalSpace={totalSpace}
-                    handleAnalyze={handleProceedToDelete}
-                  />
-                  <DevCleanerAnalyzeGuide />
-                </div>
-                
-                <div className="space-y-6">
-                  <h3 className="text-lg font-bold text-white">Consolidated Packages Preview</h3>
-                  {useDevCleanerStore.getState().masterList.length > 0 ? (
-                    <MasterList />
-                  ) : (
-                    <div className="glass-card p-6 border border-brand-border text-center">
-                      <FolderSearch className="w-12 h-12 text-gray-500 mx-auto mb-4" />
-                      <h3 className="text-lg font-bold text-white">No Packages Found</h3>
-                      <p className="text-gray-400 text-sm mt-2">
-                        None of the currently selected environments contained parsable dependencies. You can still proceed to delete them.
-                      </p>
-                    </div>
-                  )}
-                </div>
+              <div className="mt-8">
+                <h3 className="text-lg font-bold text-white mb-4">Found Environments</h3>
+                <DevCleanerFoundEnvs 
+                  checkedEnvs={checkedEnvs}
+                  handleToggleCheck={handleToggleCheck}
+                  totalSpace={totalSpace}
+                  handleAnalyze={handleProceedToAnalyze}
+                />
               </div>
             )}
           </>
+        )}
+
+        {/* STEP 2: ANALYZE & MASTER LIST */}
+        {step === 'analyze' && (
+          <div className="space-y-6">
+            <button 
+              onClick={() => useDevCleanerStore.setState({ step: 'scan' })}
+              className="text-sm text-gray-400 hover:text-white transition-colors"
+            >
+              &larr; Back to Selection
+            </button>
+            
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+              <div className="space-y-6">
+                <DevCleanerAnalyzeGuide />
+              </div>
+              
+              <div className="space-y-6">
+                <h3 className="text-lg font-bold text-white">Consolidated Packages Preview</h3>
+                {useDevCleanerStore.getState().masterList.length > 0 ? (
+                  <MasterList checkedEnvs={checkedEnvs} />
+                ) : (
+                  <div className="glass-card p-6 border border-brand-border text-center">
+                    <FolderSearch className="w-12 h-12 text-gray-500 mx-auto mb-4" />
+                    <h3 className="text-lg font-bold text-white">No Packages Found</h3>
+                    <p className="text-gray-400 text-sm mt-2">
+                      None of the currently selected environments contained parsable dependencies. You can still proceed to delete them.
+                    </p>
+                  </div>
+                )}
+              </div>
+            </div>
+            
+            <div className="flex justify-end border-t border-brand-border/40 pt-4">
+               <button 
+                 onClick={() => useDevCleanerStore.setState({ step: 'delete' })}
+                 className="bg-brand-rose hover:bg-brand-rose/90 text-white px-8 py-3 rounded-lg font-bold transition-colors"
+               >
+                 Proceed to Deletion &rarr;
+               </button>
+            </div>
+          </div>
         )}
 
         {/* STEP 3: AWS DELETE */}

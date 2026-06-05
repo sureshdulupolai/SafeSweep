@@ -130,19 +130,41 @@ class DevScanningTask:
                                 if entry.name in active_targets:
                                     full_path = entry.path
                                     is_python_env = False
-                                    if entry.name in ["venv", "env", ".env", "virtualenv", "anaconda3", "miniconda3"]:
-                                        if os.path.exists(os.path.join(full_path, "Scripts", "python.exe")):
+                                    is_valid = True
+                                    
+                                    if self.language == 'python':
+                                        is_valid = False
+                                        # Strict check for Python environments
+                                        if os.path.exists(os.path.join(full_path, "pyvenv.cfg")) or \
+                                           os.path.exists(os.path.join(full_path, "Scripts", "python.exe")) or \
+                                           os.path.exists(os.path.join(full_path, "bin", "python")):
+                                            is_valid = True
                                             is_python_env = True
                                             
-                                    # Submit size calculation to executor to avoid blocking traversal
-                                    size_executor.submit(process_target, full_path, entry.name, is_python_env)
-                                    
-                                    # DO NOT add python environments to the path_queue, this prevents listing sub-caches
-                                    # inside an environment, and stops redundant scanning.
-                                    if not is_python_env:
-                                        # But wait, what if it's node_modules? We also shouldn't traverse node_modules!
-                                        # In fact, we should never traverse INSIDE an active target unless it's not a cache.
-                                        pass
+                                    elif self.language == 'node':
+                                        if entry.name == 'node_modules':
+                                            is_valid = False
+                                            # Strict check for Node.js environments
+                                            parent_dir = os.path.dirname(full_path)
+                                            if os.path.exists(os.path.join(parent_dir, "package.json")):
+                                                is_valid = True
+                                                
+                                    elif self.language == 'rust':
+                                        if entry.name == 'target':
+                                            is_valid = False
+                                            # Strict check for Rust environments
+                                            parent_dir = os.path.dirname(full_path)
+                                            if os.path.exists(os.path.join(parent_dir, "Cargo.toml")):
+                                                is_valid = True
+
+                                    if is_valid:
+                                        # Submit size calculation to executor to avoid blocking traversal
+                                        size_executor.submit(process_target, full_path, entry.name, is_python_env)
+                                        # DO NOT add valid environments to the path_queue, this prevents listing sub-caches
+                                        # inside an environment, and stops redundant scanning.
+                                    else:
+                                        # If it matched the name but isn't valid, keep traversing!
+                                        path_queue.put(entry.path)
                                 else:
                                     # Regular folder, add to queue for traversal
                                     path_queue.put(entry.path)
@@ -191,8 +213,10 @@ class DevCleanerService:
         self.dispatcher.methods["dev.analyze_envs"] = self.handle_analyze_envs
         self.dispatcher.methods["dev.create_env"] = self.handle_create_env
         self.dispatcher.methods["dev.delete_envs"] = self.handle_delete_envs
-
-        self.active_task = None
+        self.dispatcher.methods["dev.cancel_delete_envs"] = self.handle_cancel_delete_envs
+        
+        self.active_scanner = None
+        self.cancel_delete_event = threading.Event()
 
         self.DEV_TARGETS = {
             "node_modules", "venv", "env", ".env", "virtualenv", 
@@ -442,26 +466,69 @@ class DevCleanerService:
         except Exception as e:
             return {"success": False, "error": str(e)}
 
+    def handle_cancel_delete_envs(self, params):
+        self.cancel_delete_event.set()
+        return {"success": True}
+
     def handle_delete_envs(self, params):
+        self.cancel_delete_event.clear()
         env_paths = params.get("env_paths", [])
         results = []
+        results_lock = threading.Lock()
         
-        for path in env_paths:
+        def delete_single_env(path):
+            if self.cancel_delete_event.is_set():
+                print(f"[{time.strftime('%H:%M:%S')}] CANCELLED BEFORE STARTING -> {path}", file=sys.stderr, flush=True)
+                return
+                
+            print(f"[{time.strftime('%H:%M:%S')}] DELETING ENTIRE ENVIRONMENT -> {path}", file=sys.stderr, flush=True)
             try:
-                # Fast bottom-up delete
-                for root, dirs, files in os.walk(path, topdown=False):
-                    for name in files:
-                        try: os.remove(os.path.join(root, name))
-                        except Exception: pass
-                    for name in dirs:
-                        try: os.rmdir(os.path.join(root, name))
-                        except Exception: pass
+                # Fast optimized delete using shutil
+                import shutil
+                shutil.rmtree(path, ignore_errors=True)
                 
-                try: os.rmdir(path)
-                except Exception: pass
+                # Double check if any stubborn files remained
+                if os.path.exists(path):
+                    try:
+                        # Fallback for read-only files
+                        for root, dirs, files in os.walk(path, topdown=False):
+                            if self.cancel_delete_event.is_set():
+                                break
+                            for name in files:
+                                if self.cancel_delete_event.is_set():
+                                    break
+                                try:
+                                    file_path = os.path.join(root, name)
+                                    os.chmod(file_path, 0o777)
+                                    os.remove(file_path)
+                                except Exception: pass
+                            for name in dirs:
+                                if self.cancel_delete_event.is_set():
+                                    break
+                                try: os.rmdir(os.path.join(root, name))
+                                except Exception: pass
+                        os.rmdir(path)
+                    except Exception: pass
                 
-                results.append({"path": path, "deleted": not os.path.exists(path)})
+                success = not os.path.exists(path)
+                with results_lock:
+                    results.append({"path": path, "deleted": success})
+                
+                if success:
+                    print(f"\n=======================================================", file=sys.stderr, flush=True)
+                    print(f"[{time.strftime('%H:%M:%S')}] ✅ SUCCESSFULLY DELETED: {path}", file=sys.stderr, flush=True)
+                    print(f"=======================================================\n", file=sys.stderr, flush=True)
+                else:
+                    if self.cancel_delete_event.is_set():
+                        print(f"[{time.strftime('%H:%M:%S')}] 🛑 CANCELLED DURING DELETE -> {path}", file=sys.stderr, flush=True)
+                    else:
+                        print(f"[{time.strftime('%H:%M:%S')}] ⚠️ PARTIAL DELETE -> {path}", file=sys.stderr, flush=True)
             except Exception as e:
-                results.append({"path": path, "deleted": False, "error": str(e)})
+                with results_lock:
+                    results.append({"path": path, "deleted": False, "error": str(e)})
+                print(f"[{time.strftime('%H:%M:%S')}] ERROR DELETING -> {path} ({str(e)})", file=sys.stderr, flush=True)
+                
+        with concurrent.futures.ThreadPoolExecutor(max_workers=8) as executor:
+            executor.map(delete_single_env, env_paths)
                 
         return {"success": True, "results": results}

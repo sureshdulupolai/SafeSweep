@@ -99,7 +99,7 @@ export const useDevCleanerStore = create((set, get) => ({
   },
   
   analyzeEnvs: async (envPaths, language) => {
-    set({ isAnalyzing: true });
+    set({ isAnalyzing: true, step: 'analyze' });
     try {
       const res = await fetchWithApi('dev.analyze_envs', { env_paths: envPaths, language: language });
       set({ masterList: res.master_list || [], isAnalyzing: false });
@@ -218,6 +218,12 @@ export const useDevCleanerStore = create((set, get) => ({
   },
   
   resetStore: () => {
+    const state = get();
+    if (state.isDeleting) {
+      // Tell backend to abort the deletion loop
+      fetchWithApi('dev.cancel_delete_envs', {}).catch(console.error);
+    }
+    
     set({
       step: 'scan',
       isScanning: false,

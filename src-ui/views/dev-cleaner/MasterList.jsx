@@ -2,7 +2,7 @@ import React, { useState } from 'react';
 import { useDevCleanerStore } from '../../store/useDevCleanerStore';
 import { Save, Plus, Trash2, Cpu, FolderSearch } from 'lucide-react';
 
-export default function MasterList() {
+export default function MasterList({ checkedEnvs = [] }) {
   const masterList = useDevCleanerStore((state) => state.masterList);
   const devCaches = useDevCleanerStore((state) => state.devCaches);
   const updateMasterListVersion = useDevCleanerStore((state) => state.updateMasterListVersion);
@@ -29,16 +29,18 @@ export default function MasterList() {
     }
   };
 
+  const analyzedCaches = devCaches.filter(c => checkedEnvs.includes(c.path));
+
   return (
     <div className="space-y-4">
-      {devCaches && devCaches.length > 0 && (
+      {analyzedCaches && analyzedCaches.length > 0 && (
         <div className="bg-brand-dark/40 border border-brand-border/50 rounded-lg p-4 mb-2">
           <h4 className="text-sm font-semibold text-gray-200 mb-3 flex items-center gap-2">
             <FolderSearch className="h-4 w-4 text-brand-accent" />
-            Environments Analyzed ({devCaches.length})
+            Environments Analyzed ({analyzedCaches.length})
           </h4>
           <div className="max-h-40 overflow-y-auto text-xs font-mono text-gray-400 space-y-1 pr-2">
-            {devCaches.map((cache, i) => (
+            {analyzedCaches.map((cache, i) => (
               <div key={i} className="flex items-center justify-between bg-black/30 px-3 py-2 rounded border border-gray-800/50">
                 <span className="truncate pr-4 text-gray-300" title={getParentPath(cache.path)}>{getParentPath(cache.path)}</span>
                 <span className="shrink-0 text-brand-accent/80 font-bold tracking-wider uppercase text-[10px]">{cache.name}</span>
@@ -51,7 +53,7 @@ export default function MasterList() {
       <div className="bg-brand-card border border-brand-border rounded-lg p-5">
         <div className="flex items-center gap-2 mb-4">
           <Cpu className="text-brand-accent h-5 w-5" />
-          <h3 className="font-bold text-gray-200">Common Master List</h3>
+          <h3 className="font-bold text-gray-200">Common Master List ({masterList.length} Packages)</h3>
         </div>
         <p className="text-xs text-gray-400 mb-6">
           Review the packages discovered across your environments. Package names are read-only.

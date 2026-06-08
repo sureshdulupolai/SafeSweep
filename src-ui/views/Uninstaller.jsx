@@ -79,16 +79,16 @@ export default function Uninstaller() {
     setModalStep('completed');
   };
 
-  const handleResearchClick = async (app) => {
+  const handleResearchClick = (app) => {
     setActiveApp(app);
-    setModalStep('researching');
-    const data = await researchApp(app.name);
-    setResearchData(data);
-    setModalStep('research_result');
+    // Directly open the Google search in the default system browser
+    const query = `What is ${app.name} software should I remove it`;
+    window.open(`https://www.google.com/search?q=${encodeURIComponent(query)}`, '_blank');
   };
 
   const handleManualSearch = () => {
-    const query = `What is ${activeApp?.name} software should I remove it`;
+    if (!activeApp) return;
+    const query = `What is ${activeApp.name} software should I remove it`;
     window.open(`https://www.google.com/search?q=${encodeURIComponent(query)}`, '_blank');
   };
 
@@ -126,7 +126,7 @@ export default function Uninstaller() {
       exit={{ opacity: 0, y: 15 }}
       className="flex-1 p-6 flex flex-col overflow-hidden h-full relative"
     >
-      <div className="flex justify-between items-center mb-6 flex-shrink-0">
+      <div className="flex flex-col xl:flex-row justify-between items-start xl:items-center gap-4 mb-6 flex-shrink-0">
         <div>
           <h2 className="text-xl font-bold tracking-tight text-gray-200">App Uninstaller</h2>
           <div className="flex items-center gap-3 mt-0.5">
@@ -138,7 +138,7 @@ export default function Uninstaller() {
             )}
           </div>
         </div>
-        <div className="flex items-center gap-2">
+        <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2 w-full xl:w-auto">
           <select
             value={sizeFilter}
             onChange={(e) => setSizeFilter(e.target.value)}
@@ -155,7 +155,7 @@ export default function Uninstaller() {
               placeholder="Search installed apps..."
               value={searchQuery}
               onChange={e => setSearchQuery(e.target.value)}
-              className="pl-9 pr-4 py-2 bg-brand-darkest border border-brand-border rounded-lg text-sm text-gray-200 focus:outline-none focus:border-brand-accent transition-colors w-64"
+              className="pl-9 pr-4 py-2 bg-brand-darkest border border-brand-border rounded-lg text-sm text-gray-200 focus:outline-none focus:border-brand-accent transition-colors w-full sm:w-64"
             />
           </div>
         </div>
@@ -170,7 +170,7 @@ export default function Uninstaller() {
         )}
 
         <div className="flex-1 overflow-y-auto p-4 custom-scrollbar">
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
             {filteredApps.map(app => (
               <div key={app.id} className="bg-brand-dark border border-brand-border rounded-lg p-4 hover:border-brand-accent/50 transition-colors group flex flex-col justify-between">
                 <div className="flex items-start gap-3 mb-4">
@@ -184,7 +184,7 @@ export default function Uninstaller() {
                   </div>
                 </div>
 
-                <div className="flex gap-2">
+                <div className="flex flex-col xl:flex-row gap-2 mt-auto">
                   <button
                     onClick={() => handleResearchClick(app)}
                     className="flex-1 py-2 bg-blue-500/10 hover:bg-blue-500/20 text-blue-400 border border-blue-500/20 rounded-lg text-xs font-bold tracking-wider uppercase transition-colors flex items-center justify-center gap-2"

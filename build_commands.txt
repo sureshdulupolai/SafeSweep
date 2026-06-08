@@ -1,0 +1,15 @@
+# Complete Fresh Build Instructions for SafeSweep
+# Run these commands in PowerShell from the project root folder (Cleaner)
+
+# 1. Kill any background processes that might be locking files
+taskkill /F /IM SafeSweep.exe /T
+taskkill /F /IM main.exe /T
+
+# 2. Delete old build cache and compiled folders
+rmdir /S /Q release
+rmdir /S /Q sidecar-dist
+rmdir /S /Q dist-ui
+rmdir /S /Q build
+
+# 3. Create a fresh clean build
+npm run dist

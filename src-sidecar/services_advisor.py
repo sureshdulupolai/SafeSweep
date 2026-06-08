@@ -1,6 +1,8 @@
 import psutil
 import subprocess
 import logging
+import re
+import base64
 
 logger = logging.getLogger(__name__)
 
@@ -59,10 +61,13 @@ def get_services_info():
     return services
 
 def change_service_status(name, action):
-    # action is either 'start' or 'stop'
-    if name not in SAFE_TO_DISABLE:
-        return {"success": False, "error": "Service not in safe list"}
-    
+    """
+    Attempts to start or stop a service via sc.
+    If it fails due to access denied, it requests UAC elevation.
+    """
+    if not name or not re.match(r"^[a-zA-Z0-9_\-\s]+$", str(name)):
+        return {"success": False, "error": "Invalid service name format. Only alphanumeric characters allowed."}
+        
     if action not in ["start", "stop"]:
         return {"success": False, "error": "Invalid action"}
         
@@ -78,7 +83,9 @@ def change_service_status(name, action):
             if "Access is denied" in err_msg or "5" in err_msg:
                 try:
                     elevate_cmd = f"Start-Process sc -ArgumentList '{action}', '{name}' -Verb RunAs -WindowStyle Hidden -Wait"
-                    elevate_res = subprocess.run(["powershell", "-Command", elevate_cmd], capture_output=True, text=True)
+                    # Base64 encode the PowerShell command to completely eliminate shell injection
+                    encoded_cmd = base64.b64encode(elevate_cmd.encode('utf-16le')).decode('utf-8')
+                    elevate_res = subprocess.run(["powershell", "-EncodedCommand", encoded_cmd], capture_output=True, text=True)
                     if elevate_res.returncode == 0:
                         return {"success": True}
                     else:

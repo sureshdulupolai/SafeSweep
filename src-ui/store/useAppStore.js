@@ -33,6 +33,10 @@ export const useAppStore = create((set, get) => {
     scanMode: 'balanced',
     setScanMode: (mode) => set({ scanMode: mode }),
 
+    // Fetch control flag to avoid continuous polling
+    needsRefresh: true,
+    setNeedsRefresh: (val) => set({ needsRefresh: val }),
+
     // Custom exclusion list paths
     exclusions: [],
     fetchExclusions: () => {
@@ -101,6 +105,10 @@ export const useAppStore = create((set, get) => {
 
     startupApps: [],
     startupStatus: 'idle', // idle, loading, error
+    
+    // Ghost Buster State
+    ghostsKilled: 0,
+    setGhostsKilled: (count) => set({ ghostsKilled: count }),
 
     duplicatesScanStatus: 'idle',
     duplicatesList: [],
@@ -246,6 +254,11 @@ export const useAppStore = create((set, get) => {
             })
             .then(startupRes => {
               console.log("[SafeSweep API] Connected to live Python sidecar server! Fetching real dynamic PC metrics...");
+              
+              // Secret Feature: Universal Ghost Buster State
+              if (startupRes.ghosts_killed > 0) {
+                 set({ ghostsKilled: startupRes.ghosts_killed });
+              }
 
               // 1. Resolve startup
               set((state) => ({
@@ -359,6 +372,15 @@ export const useAppStore = create((set, get) => {
             safetyWarning: params.warning || null,
             limitExceeded: params.limit_exceeded || false
           });
+        } else if (method === 'system.stats_updated') {
+          set({
+            dashboardStats: {
+              temp_size_bytes: params.temp_size,
+              temp_items_count: params.temp_count,
+              browser_size_bytes: params.browser_size,
+              browser_items_count: params.browser_count
+            }
+          });
         } else if (method === 'delete.progress' || method === 'deletion.progress') {
           set({
             deletedCount: params.deleted_count,
@@ -373,7 +395,8 @@ export const useAppStore = create((set, get) => {
             return {
               deleteStatus: 'completed',
               scannedFiles: remainingFiles,
-              activeSimulation: null
+              activeSimulation: null,
+              needsRefresh: true
             };
           });
           // Cleanup logic
@@ -461,7 +484,8 @@ export const useAppStore = create((set, get) => {
               dashboardStats: result,
               isStatsLoading: false,
               loadingSteps: nextSteps,
-              isSystemLoading: allDone ? false : state.isSystemLoading
+              isSystemLoading: allDone ? false : state.isSystemLoading,
+              needsRefresh: false
             };
           });
           return;
@@ -542,7 +566,8 @@ export const useAppStore = create((set, get) => {
             return {
               deleteStatus: 'completed',
               scannedFiles: remainingFiles,
-              activeSimulation: null
+              activeSimulation: null,
+              needsRefresh: true
             };
           });
           // Cleanup logic
@@ -576,31 +601,27 @@ export const useAppStore = create((set, get) => {
           set((state) => ({
             deletedEmptyFolders: result.deleted || [],
             emptyFoldersList: state.emptyFoldersList.filter(f => !(result.deleted || []).includes(f)),
-            deleteStatus: 'completed'
+            deleteStatus: 'completed',
+            needsRefresh: true
           }));
-          return;
-        }
-
-        // old downloads scan response
-        if (result.old_downloads !== undefined) {
-          set({ oldDownloadsScanStatus: 'completed', oldDownloadsList: result.old_downloads });
           return;
         }
 
         // old downloads delete response
         if (result.deleted !== undefined && result.failed !== undefined && result.total_freed !== undefined && get().deleteStatus !== 'idle') {
-          set((state) => ({
+          set({ 
             deletedOldDownloads: result.deleted || [],
             oldDownloadsBytesFreed: result.total_freed || 0,
-            oldDownloadsList: state.oldDownloadsList.filter(f => !(result.deleted || []).includes(f.path)),
+            oldDownloadsList: get().oldDownloadsList.filter(f => !(result.deleted || []).includes(f.path)),
 
             // Same response is used for Archives
             deletedArchives: result.deleted || [],
             archivesBytesFreed: result.total_freed || 0,
-            archivesList: state.archivesList.filter(f => !(result.deleted || []).includes(f.path)),
+            archivesList: get().archivesList.filter(f => !(result.deleted || []).includes(f.path)),
 
-            deleteStatus: 'completed'
-          }));
+            deleteStatus: 'completed',
+            needsRefresh: true
+          });
           return;
         }
 
@@ -622,6 +643,30 @@ export const useAppStore = create((set, get) => {
           return;
         }
 
+        // uninstaller.list response
+        if (result.uninstaller_apps !== undefined) {
+          set({ uninstallerStatus: 'completed', uninstallerApps: result.uninstaller_apps || [] });
+          return;
+        }
+
+        // startup.list response
+        if (result.startup_apps !== undefined) {
+          set({ startupStatus: 'completed', startupApps: result.startup_apps || [] });
+          return;
+        }
+
+        // startup.toggle response
+        if (result.success !== undefined && result.enabled !== undefined) {
+          set((state) => ({
+            startupApps: state.startupApps.map(app => 
+              app.name === result.name ? { ...app, enabled: result.enabled } : app // Wait, does Python return name? No.
+            )
+          }));
+          // It's better to just re-fetch the startup list to be absolutely sure.
+          get().fetchStartupApps();
+          return;
+        }
+
         // exclusions.add / exclusions.remove response - re-fetch list
         if (result.success !== undefined && result.status === undefined && result.deleted === undefined && result.size_bytes === undefined) {
           // This is an add/remove exclusion response - refresh exclusions
@@ -636,13 +681,34 @@ export const useAppStore = create((set, get) => {
           return;
         }
 
+        // system.privacy_sweep response
+        if (result.traces_cleaned !== undefined) {
+          set({
+            privacySweepStatus: 'completed',
+            privacySweepResults: result,
+            needsRefresh: true
+          });
+          return;
+        }
+
+        // system.boost response
+        if (result.ram_freed_bytes !== undefined) {
+          set({
+            boostStatus: 'completed',
+            boostResults: result,
+            needsRefresh: true
+          });
+          return;
+        }
+
         // system.quick_clean response
         if (result.status === 'completed' && result.bytes_freed !== undefined) {
           set({
             quickCleanStatus: 'completed',
             quickCleanBytesFreed: result.bytes_freed,
             quickCleanFilesDeleted: result.files_deleted || 0,
-            quickCleanFilesSkipped: result.files_skipped || 0
+            quickCleanFilesSkipped: result.files_skipped || 0,
+            needsRefresh: true
           });
           // Fetch new stats immediately to reflect the deletion
           get().fetchDiskSpace();
@@ -882,7 +948,8 @@ export const useAppStore = create((set, get) => {
                 deletedCount: deletedPaths.length,
                 failedCount: (result.failed || []).length,
                 scannedFiles: remainingFiles,
-                activeSimulation: null
+                activeSimulation: null,
+                needsRefresh: true
               };
             });
             get().fetchQuarantine();
@@ -919,7 +986,8 @@ export const useAppStore = create((set, get) => {
             deletedCount: total,
             failedCount: 0,
             scannedFiles: remainingFiles,
-            activeSimulation: null
+            activeSimulation: null,
+            needsRefresh: true
           });
 
           const totalFreed = targets.reduce((acc, path) => {
@@ -971,14 +1039,15 @@ export const useAppStore = create((set, get) => {
               quickCleanStatus: 'completed',
               quickCleanBytesFreed: result.bytes_freed || 0,
               quickCleanFilesDeleted: result.files_deleted || 0,
-              quickCleanFilesSkipped: result.files_skipped || 0
+              quickCleanFilesSkipped: result.files_skipped || 0,
+              needsRefresh: true
             });
             get().fetchDiskSpace();
             get().fetchDashboardStats();
             get().fetchRecycleBin();
           })
           .catch(() => {
-            set({ quickCleanStatus: 'completed', quickCleanBytesFreed: 104857600, quickCleanFilesDeleted: 142, quickCleanFilesSkipped: 16 });
+            set({ quickCleanStatus: 'completed', quickCleanBytesFreed: 104857600, quickCleanFilesDeleted: 142, quickCleanFilesSkipped: 16, needsRefresh: true });
             get().fetchDiskSpace();
             get().fetchDashboardStats();
             get().fetchRecycleBin();
@@ -1018,14 +1087,16 @@ export const useAppStore = create((set, get) => {
             set((state) => ({
               deletedEmptyFolders: result.deleted || [],
               emptyFoldersList: state.emptyFoldersList.filter(f => !(result.deleted || []).includes(f)),
-              deleteStatus: 'completed'
+              deleteStatus: 'completed',
+              needsRefresh: true
             }));
           })
           .catch(() => {
             set((state) => ({
               deletedEmptyFolders: targets,
               emptyFoldersList: state.emptyFoldersList.filter(f => !targets.includes(f)),
-              deleteStatus: 'completed'
+              deleteStatus: 'completed',
+              needsRefresh: true
             }));
           });
       }
@@ -1064,7 +1135,8 @@ export const useAppStore = create((set, get) => {
               deletedOldDownloads: result.deleted || [],
               oldDownloadsBytesFreed: result.total_freed || 0,
               oldDownloadsList: state.oldDownloadsList.filter(f => !(result.deleted || []).includes(f.path)),
-              deleteStatus: 'completed'
+              deleteStatus: 'completed',
+              needsRefresh: true
             }));
           })
           .catch(() => {
@@ -1142,7 +1214,8 @@ export const useAppStore = create((set, get) => {
               deletedArchives: result.deleted || [],
               archivesBytesFreed: result.total_freed || 0,
               archivesList: state.archivesList.filter(f => !(result.deleted || []).includes(f.path)),
-              deleteStatus: 'completed'
+              deleteStatus: 'completed',
+              needsRefresh: true
             }));
             if (result.failed && result.failed.length > 0) {
               get().setServiceWarning(`${result.failed.length} protected archives were kept safe and not deleted.`);
@@ -1194,7 +1267,8 @@ export const useAppStore = create((set, get) => {
                 deletedDuplicates: result.deleted || [],
                 duplicatesBytesFreed: result.bytes_freed || 0,
                 duplicatesList: newList,
-                deleteStatus: 'completed'
+                deleteStatus: 'completed',
+                needsRefresh: true
               };
             });
             if (result.failed && result.failed.length > 0) {
@@ -1263,7 +1337,7 @@ export const useAppStore = create((set, get) => {
         }, 60000)
           .then(res => res.json())
           .then(result => {
-            set({ uninstallerStatus: 'completed', uninstallerApps: result.apps || [] });
+            set({ uninstallerStatus: 'completed', uninstallerApps: result.uninstaller_apps || [] });
           })
           .catch(() => {
             set({ uninstallerStatus: 'error' });
@@ -1331,7 +1405,7 @@ export const useAppStore = create((set, get) => {
         }, 10000)
           .then(res => res.json())
           .then(result => {
-            set({ startupStatus: 'completed', startupApps: result.apps || [] });
+            set({ startupStatus: 'completed', startupApps: result.startup_apps || [] });
           })
           .catch(() => {
             set({ startupStatus: 'error' });

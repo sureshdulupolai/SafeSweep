@@ -20,7 +20,7 @@ export default function Sidebar() {
       {/* Sidebar Header */}
       <div className="p-4 border-b border-brand-border space-y-3">
         <div className="flex items-center gap-3">
-          <img src="/icon.png" className="h-11 w-11 object-contain flex-shrink-0 rounded-lg shadow-sm" alt="SafeSweep Logo" />
+          <img src="./icon.png" className="h-11 w-11 object-contain flex-shrink-0 rounded-lg shadow-sm" alt="SafeSweep Logo" />
           <div>
             <h1 className="font-bold text-sm tracking-tight text-gray-100">SafeSweep</h1>
             <span className="text-[10px] text-gray-500 font-semibold uppercase tracking-wider block">Production Utility</span>

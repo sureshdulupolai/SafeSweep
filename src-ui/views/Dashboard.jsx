@@ -14,6 +14,7 @@ import DuplicateFinder from '../components/DuplicateFinder';
 import GameBoosterModal from '../components/GameBoosterModal';
 import PrivacySweeperModal from '../components/PrivacySweeperModal';
 import StartupManagerModal from '../components/StartupManagerModal';
+import GhostBusterModal from '../components/GhostBusterModal';
 
 // Pulsing skeleton placeholder block
 function Skeleton({ className = '' }) {
@@ -45,6 +46,10 @@ export default function Dashboard() {
   const isStatsLoading = useAppStore((state) => state.isStatsLoading);
 
   const [isInitialLoad, setIsInitialLoad] = useState(true);
+
+  // Fetch control
+  const needsRefresh = useAppStore((state) => state.needsRefresh);
+  const setNeedsRefresh = useAppStore((state) => state.setNeedsRefresh);
 
   useEffect(() => {
     if (!isDiskLoading && !isRecycleLoading && !isStatsLoading) {
@@ -141,20 +146,13 @@ export default function Dashboard() {
   }, [quickCleanStatus, modalState.isOpen, modalState.step]);
 
   useEffect(() => {
-    // Fetch fresh data on mount (supports both Chrome browser and Electron)
-    fetchDiskSpace();
-    fetchDashboardStats();
-    fetchRecycleBin();
-
-    // Poll every 3 seconds to keep data live dynamically
-    const interval = setInterval(() => {
+    if (needsRefresh) {
       fetchDiskSpace();
       fetchDashboardStats();
       fetchRecycleBin();
-    }, 3000);
-
-    return () => clearInterval(interval);
-  }, [fetchDiskSpace, fetchDashboardStats, fetchRecycleBin]);
+      setNeedsRefresh(false);
+    }
+  }, [needsRefresh, fetchDiskSpace, fetchDashboardStats, fetchRecycleBin, setNeedsRefresh]);
 
   const handleScanTrigger = () => {
     startScan('C:\\');
@@ -609,7 +607,7 @@ export default function Dashboard() {
                   <div className="space-y-3 flex-1 border-l border-brand-border pl-6">
                     <div className="flex items-center gap-2 mb-1">
                       <Cpu className="h-4 w-4 text-brand-green" />
-                      <h3 className="font-semibold text-gray-200 text-sm">Live System Telemetry</h3>
+                      <h3 className="font-semibold text-gray-200 text-sm">System Resources Snapshot</h3>
                     </div>
                     <div className="grid grid-cols-2 gap-3 text-[11px] font-mono">
                       <div>
@@ -619,30 +617,6 @@ export default function Dashboard() {
                       <div>
                         <span className="text-gray-500 block mb-0.5">RAM Usage</span>
                         <span className="font-semibold text-gray-300">{hardwareStats?.ram?.toFixed(1) || 0}%</span>
-                      </div>
-                      <div>
-                        <span className="text-gray-500 block mb-0.5">Battery Health</span>
-                        <span className="font-semibold text-brand-amber">{hardwareStats?.battery_health || 'Unknown'}</span>
-                      </div>
-                      <div>
-                        <span className="text-gray-500 block mb-0.5">Battery Level</span>
-                        <span className="font-semibold text-brand-green">{hardwareStats?.battery_percent || 'N/A'}%</span>
-                      </div>
-                      <div>
-                        <span className="text-gray-500 block mb-0.5">Disk Read</span>
-                        <span className="font-semibold text-gray-300">{formatBytes(hardwareStats?.diskReadSpeed || 0)}/s</span>
-                      </div>
-                      <div>
-                        <span className="text-gray-500 block mb-0.5">Disk Write</span>
-                        <span className="font-semibold text-gray-300">{formatBytes(hardwareStats?.diskWriteSpeed || 0)}/s</span>
-                      </div>
-                      <div>
-                        <span className="text-gray-500 block mb-0.5">Net Recv</span>
-                        <span className="font-semibold text-gray-300">{formatBytes(hardwareStats?.netRecvSpeed || 0)}/s</span>
-                      </div>
-                      <div>
-                        <span className="text-gray-500 block mb-0.5">Net Sent</span>
-                        <span className="font-semibold text-gray-300">{formatBytes(hardwareStats?.netSentSpeed || 0)}/s</span>
                       </div>
                     </div>
                   </div>
@@ -922,6 +896,7 @@ export default function Dashboard() {
         isOpen={isStartupManagerOpen}
         onClose={() => setIsStartupManagerOpen(false)}
       />
+      <GhostBusterModal />
       <SuccessCard 
         isOpen={isSuccessCardOpen} 
         onClose={() => {

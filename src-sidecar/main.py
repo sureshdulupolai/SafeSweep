@@ -49,53 +49,6 @@ def rpc_notify(method, params):
     }
     sys.stdout.write(json.dumps(packet) + "\n")
     sys.stdout.flush()
-# Global variables for caching hardware health
-PHYSICAL_BATTERY_HEALTH = "Calculating..."
-
-def _fetch_physical_battery_health():
-    global PHYSICAL_BATTERY_HEALTH
-    try:
-        import subprocess, tempfile, re
-        tmp_dir = tempfile.gettempdir()
-        report_path = os.path.join(tmp_dir, 'battery_report_telemetry.xml')
-        # Use CREATE_NO_WINDOW = 0x08000000 to prevent console flashes
-        subprocess.run(
-            ['powercfg', '/batteryreport', '/output', report_path, '/xml'], 
-            capture_output=True, 
-            creationflags=0x08000000
-        )
-        
-        if os.path.exists(report_path):
-            with open(report_path, 'r', encoding='utf-8', errors='ignore') as f:
-                content = f.read()
-            
-            design_match = re.search(r'<DesignCapacity>(\d+)</DesignCapacity>', content)
-            full_match = re.search(r'<FullChargeCapacity>(\d+)</FullChargeCapacity>', content)
-            
-            if design_match and full_match:
-                design = int(design_match.group(1))
-                full = int(full_match.group(1))
-                if design > 0:
-                    health_pct = min(100, round((full / design) * 100))
-                    PHYSICAL_BATTERY_HEALTH = f"{health_pct}%"
-                else:
-                    PHYSICAL_BATTERY_HEALTH = "Unknown"
-            else:
-                PHYSICAL_BATTERY_HEALTH = "No Battery"
-            
-            # Clean up
-            try:
-                os.remove(report_path)
-            except Exception: pass
-        else:
-            PHYSICAL_BATTERY_HEALTH = "Unknown"
-    except Exception as e:
-        PHYSICAL_BATTERY_HEALTH = "Error"
-        logger.error("Failed to fetch physical battery health", {"error": str(e)})
-
-# Start the fetcher thread immediately
-threading.Thread(target=_fetch_physical_battery_health, daemon=True).start()
-
 DevCleanerService(dispatcher, rpc_notify)
 
 # Globals to cache statistics safely to avoid repetitive heavy I/O walks
@@ -110,10 +63,11 @@ cached_stats = {
 is_updating_stats = False
 stats_lock = threading.Lock()
 
-def update_cached_stats_thread():
+def update_cached_stats_thread(force=False):
     global cached_stats, is_updating_stats
     import sys
     import math
+    import time
     with stats_lock:
         if is_updating_stats:
             return
@@ -193,11 +147,18 @@ def update_cached_stats_thread():
         except Exception:
             pass
 
+        # Update the timestamp immediately to start the cooldown timer
+        cached_stats["last_updated"] = time.time()
+        
         cached_stats["temp_size"] = t_size
         cached_stats["temp_count"] = t_count
         cached_stats["browser_size"] = b_size
         cached_stats["browser_count"] = b_count
-        cached_stats["last_updated"] = time.time()
+        
+        try:
+            rpc_notify("system.stats_updated", cached_stats)
+        except Exception:
+            pass
         
         def format_size(bytes_count):
             if not bytes_count or bytes_count == 0:
@@ -219,13 +180,66 @@ def update_cached_stats_thread():
 
 # --- METHOD REGISTER BOUNDARIES ---
 
+def kill_ghost_instances():
+    """
+    Secret Startup Feature: Universal Ghost & Threat Buster 👻🛡️
+    Forcefully terminates orphaned instances of SafeSweep, unused background bloatware,
+    and known malware/miner processes to protect the PC and save battery.
+    """
+    import psutil
+    import os
+    
+    current_pid = os.getpid()
+    parent_pid = os.getppid()
+    ghosts_killed = 0
+    
+    # Unused telemetry, background bloat, and known generic malware/miner names
+    THREAT_AND_BLOAT = {
+        "compattelrunner.exe", "wermgr.exe", "mobsync.exe", 
+        "officeclicktorun.exe", "adobeipcbroker.exe", "adobegcclient.exe",
+        "jusched.exe", "googleupdate.exe", "microsoftedgeupdate.exe",
+        "gamingservices.exe", "gamingservicesnet.exe", "ccleaner64.exe",
+        "wuauserv.exe", "diagtrack.exe", "xmrig.exe", "minerd.exe", 
+        "ccminer.exe", "win32.exe", "sysupdate.exe"
+    }
+    
+    for proc in psutil.process_iter(['pid', 'name', 'cmdline']):
+        try:
+            if proc.info['pid'] in (current_pid, parent_pid):
+                continue
+                
+            cmdline = proc.info.get('cmdline') or []
+            name = proc.info.get('name', '').lower()
+            
+            # Check if it's the packaged executable
+            is_packaged_ghost = name == 'main.exe' and 'sidecar-dist' in str(proc.exe()).lower()
+            
+            # Check if it's the python script
+            is_dev_ghost = name in ('python.exe', 'pythonw.exe') and any('src-sidecar\\main.py' in str(arg).lower() for arg in cmdline)
+            
+            # Check for unused bloatware or malware threats
+            is_threat = name in THREAT_AND_BLOAT
+            
+            if is_packaged_ghost or is_dev_ghost or is_threat:
+                proc.kill()
+                ghosts_killed += 1
+        except (psutil.NoSuchProcess, psutil.AccessDenied, psutil.ZombieProcess, Exception):
+            pass
+            
+    return ghosts_killed
+
 @dispatcher.register("system.startup")
 def handle_startup(params):
+    # Secret Feature: Nuke any ghost background instances to stop battery drain!
+    ghosts_killed = kill_ghost_instances()
+    if ghosts_killed > 0:
+        logger.info(f"Ghost Buster executed. Terminated {ghosts_killed} orphaned background process(es).")
+        
     # Run startup integrity and transaction recoveries
     success = crash_recovery_manager.startup_integrity_check()
     
-    # Trigger background thread immediately to query real stats asynchronously
-    threading.Thread(target=update_cached_stats_thread, daemon=True).start()
+    # Trigger background thread immediately on startup (forced) to populate initial data
+    threading.Thread(target=update_cached_stats_thread, args=(True,), daemon=True).start()
     
     # Load basic state values
     exclusions = list(exclusion_engine.custom_exclusions)
@@ -242,6 +256,7 @@ def handle_startup(params):
     
     return {
         "status": "online",
+        "ghosts_killed": ghosts_killed,
         "integrity_check": "passed" if success else "failed",
         "default_exclusions_loaded": len(exclusion_engine.default_exclusion_names),
         "custom_exclusions": exclusions,
@@ -321,9 +336,9 @@ def handle_start_delete(params):
                 ("PERMANENT" if permanent else "SAFE", len(res.get("deleted", [])), 0, "COMPLETED")
             )
             
+            # Run stats update synchronously so the UI gets fresh data on refresh
+            update_cached_stats_thread(force=True)
             rpc_notify("delete.completed", res)
-            # Re-trigger background thread to update cached stats after deletion finishes
-            threading.Thread(target=update_cached_stats_thread, daemon=True).start()
         except Exception as e:
             logger.error("Deletion worker crashed.", {"error": str(e)})
             rpc_notify("delete.error", {"message": str(e)})
@@ -400,36 +415,11 @@ def handle_disk_space(params):
         cpu = psutil.cpu_percent(interval=None)
         ram = psutil.virtual_memory().percent
         
-        try:
-            net = psutil.net_io_counters()
-            network = {"sent": net.bytes_sent, "recv": net.bytes_recv}
-        except Exception:
-            network = {"sent": 0, "recv": 0}
-
-        try:
-            disk = psutil.disk_io_counters()
-            disk_io = {"read": disk.read_bytes, "write": disk.write_bytes}
-        except Exception:
-            disk_io = {"read": 0, "write": 0}
-            
-        try:
-            bat = psutil.sensors_battery()
-            if bat is None:
-                battery_percent = "100"
-            else:
-                battery_percent = str(round(bat.percent))
-        except Exception:
-            battery_percent = "N/A"
-            
         return {
             "total": usage.total,
             "free": usage.free,
             "cpu": cpu,
-            "ram": ram,
-            "battery_percent": battery_percent,
-            "battery_health": PHYSICAL_BATTERY_HEALTH,
-            "network": network,
-            "disk_io": disk_io
+            "ram": ram
         }
     except Exception as e:
         logger.error("Failed to query disk space.", {"error": str(e)})
@@ -437,9 +427,8 @@ def handle_disk_space(params):
 
 @dispatcher.register("system.dashboard_stats")
 def handle_dashboard_stats(params):
-    # Trigger an asynchronous update in the background if it's been more than 30 seconds since last check
-    if time.time() - cached_stats["last_updated"] > 30:
-        threading.Thread(target=update_cached_stats_thread, daemon=True).start()
+    # Trigger an asynchronous update in the background (respects the 5-minute cooldown to save battery)
+    threading.Thread(target=update_cached_stats_thread, daemon=True).start()
     
     return {
         "temp_size_bytes": cached_stats["temp_size"],
@@ -596,8 +585,8 @@ def handle_quick_clean(params):
         except Exception as e:
             logger.error("Failed to clean browser caches.", {"error": str(e)})
 
-    # Re-trigger background thread to update cached stats after quick clean
-    threading.Thread(target=update_cached_stats_thread, daemon=True).start()
+    # Run stats update synchronously so the UI gets fresh data on refresh
+    update_cached_stats_thread(force=True)
     
     def format_size(bytes_count):
         import math
@@ -804,7 +793,7 @@ from uninstaller_engine import get_installed_apps, uninstall_app, clean_leftover
 @dispatcher.register("uninstaller.list")
 def handle_uninstaller_list(params):
     apps = get_installed_apps()
-    return {"status": "completed", "apps": apps}
+    return {"uninstaller_apps": apps}
 
 @dispatcher.register("uninstaller.uninstall")
 def handle_uninstaller_uninstall(params):
@@ -826,7 +815,7 @@ from startup_manager import get_startup_apps, toggle_startup_app
 @dispatcher.register("startup.list")
 def handle_startup_list(params):
     apps = get_startup_apps()
-    return {"status": "completed", "apps": apps}
+    return {"startup_apps": apps}
 
 @dispatcher.register("startup.toggle")
 def handle_startup_toggle(params):
@@ -851,7 +840,15 @@ class LocalCleanerHTTPServer(BaseHTTPRequestHandler):
         pass
 
     def send_cors_headers(self):
-        self.send_header("Access-Control-Allow-Origin", "*")
+        # SECURE CORS: Never use "*" for a local server that executes sensitive system operations!
+        # Only allow the local development Vite server.
+        origin = self.headers.get("Origin")
+        allowed_origins = ["http://localhost:5173", "http://127.0.0.1:5173", "null", "file://"]
+        if origin in allowed_origins:
+            self.send_header("Access-Control-Allow-Origin", origin)
+        else:
+            self.send_header("Access-Control-Allow-Origin", "http://localhost:5173")
+            
         self.send_header("Access-Control-Allow-Methods", "GET, POST, OPTIONS")
         self.send_header("Access-Control-Allow-Headers", "Content-Type")
 
@@ -867,8 +864,26 @@ class LocalCleanerHTTPServer(BaseHTTPRequestHandler):
         self.send_response(200)
         self.send_cors_headers()
         self.end_headers()
+        
+    def _is_request_safe(self):
+        # 1. Block DNS Rebinding Attacks
+        host = self.headers.get('Host', '')
+        if not host.startswith('127.0.0.1:') and not host.startswith('localhost:'):
+            return False
+            
+        # 2. Block Cross-Origin requests from malicious internet sites
+        origin = self.headers.get("Origin")
+        if origin and origin not in ["http://localhost:5173", "http://127.0.0.1:5173", "null", "file://"]:
+            return False
+            
+        return True
 
     def do_GET(self):
+        if not self._is_request_safe():
+            self.send_response(403)
+            self.end_headers()
+            return
+            
         if self.path.startswith("/api/"):
             self.send_response(200)
             self.send_header("Content-type", "application/json")
@@ -927,7 +942,17 @@ class LocalCleanerHTTPServer(BaseHTTPRequestHandler):
                             # Normalize path separators for Windows
                             if sys.platform == 'win32':
                                 open_path = os.path.normpath(open_path)
-                                os.startfile(open_path)
+                                if not os.path.exists(open_path):
+                                    raise Exception("Path does not exist")
+                                
+                                if os.path.isdir(open_path):
+                                    # Safe to open directories
+                                    os.startfile(open_path)
+                                else:
+                                    # Prevent arbitrary code execution of files (e.g. .exe, .bat)
+                                    # Open explorer and select the file instead of running it.
+                                    import subprocess
+                                    subprocess.run(['explorer', '/select,', open_path])
                             elif sys.platform == 'darwin':
                                 import subprocess
                                 subprocess.call(["open", open_path])
@@ -980,6 +1005,11 @@ class LocalCleanerHTTPServer(BaseHTTPRequestHandler):
             self.end_headers()
 
     def do_POST(self):
+        if not self._is_request_safe():
+            self.send_response(403)
+            self.end_headers()
+            return
+            
         if self.path.startswith("/api/"):
             content_length = int(self.headers['Content-Length'])
             post_data = self.rfile.read(content_length)

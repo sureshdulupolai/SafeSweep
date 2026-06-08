@@ -15,7 +15,15 @@ contextBridge.exposeInMainWorld('api', {
       console.error('API Bridge rejected call: invalid event channel format.');
       return;
     }
-    ipcRenderer.send('ipc:request', { channel, data });
+    
+    // Strict Payload Sanitization: Ensure data only contains primitive types
+    // Prevents Prototype Pollution and malicious object injection into IPC
+    try {
+      const sanitizedData = JSON.parse(JSON.stringify(data));
+      ipcRenderer.send('ipc:request', { channel, data: sanitizedData });
+    } catch (e) {
+      console.error('API Bridge rejected call: data payload could not be cleanly serialized.');
+    }
   },
 
   /**

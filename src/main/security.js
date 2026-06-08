@@ -27,8 +27,11 @@ function enforceWindowHarden(mainWindow) {
     event.preventDefault();
   });
 
-  // Block popup creation or sub-window creation
-  mainWindow.webContents.setWindowOpenHandler(() => {
+  // Block popup creation or sub-window creation, but allow external URLs to open in default OS browser
+  mainWindow.webContents.setWindowOpenHandler(({ url }) => {
+    if (url.startsWith('http:') || url.startsWith('https:')) {
+      require('electron').shell.openExternal(url);
+    }
     return { action: 'deny' };
   });
 }

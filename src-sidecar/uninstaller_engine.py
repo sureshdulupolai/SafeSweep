@@ -6,6 +6,7 @@ import logging
 import urllib.request
 import urllib.parse
 import json
+import shlex
 
 logger = logging.getLogger(__name__)
 
@@ -120,14 +121,35 @@ def get_installed_apps():
 
 def uninstall_app(uninstall_string):
     """
-    Attempts to run the uninstall string.
+    Attempts to run the uninstall string safely without shell injection.
     """
     try:
-        # Many uninstall strings have arguments, so we run via cmd
-        # To make it silent, we could append /S or /quiet but it's risky if the uninstaller doesn't support it
-        # We will just run the command normally and let the user interact with the uninstaller UI
-        subprocess.Popen(uninstall_string, shell=True)
-        return {"success": True, "message": "Uninstaller launched"}
+        if not uninstall_string or not isinstance(uninstall_string, str):
+            return {"success": False, "error": "Invalid uninstall command format"}
+
+        # Use shlex to split the command string while preserving quoted arguments
+        args = shlex.split(uninstall_string, posix=False)
+        if not args:
+            return {"success": False, "error": "Empty uninstall command"}
+
+        # Extract the executable path (remove quotes if any)
+        executable = args[0].strip('"').strip("'")
+        
+        # Verify the executable actually exists and has a valid extension
+        _, ext = os.path.splitext(executable.lower())
+        if ext not in {".exe", ".bat", ".cmd", ".msi"}:
+            # Sometimes the registry doesn't include the .exe extension explicitly
+            if os.path.exists(executable + ".exe"):
+                executable += ".exe"
+                args[0] = executable
+            elif not os.path.exists(executable):
+                # We do not strictly fail here because Windows PATH resolution 
+                # handles things like 'msiexec.exe' perfectly.
+                pass
+        
+        # We run the command without shell=True to prevent command injection (RCE)
+        subprocess.Popen(args, shell=False)
+        return {"success": True, "message": "Uninstaller launched securely"}
     except Exception as e:
         return {"success": False, "error": str(e)}
 
@@ -139,6 +161,12 @@ def clean_leftovers(app_name):
     logger.info(f"Scanning for leftovers for {app_name}")
     cleaned_paths = []
     cleaned_registry = []
+    
+    PROTECTED_REGISTRY_KEYS = {
+        "microsoft", "windows", "intel", "amd", "nvidia", "realtek", 
+        "classes", "policies", "system", "wow6432node", "software",
+        "hardware", "sam", "security", "default", "users"
+    }
     
     # Skip if app_name is too generic to avoid catastrophic deletions
     if not app_name or len(app_name) < 4:
@@ -165,13 +193,17 @@ def clean_leftovers(app_name):
             except Exception:
                 pass
                 
-    # 2. Clean Registry (HKCU\Software)
     try:
         hkcu_software = winreg.OpenKey(winreg.HKEY_CURRENT_USER, r"SOFTWARE", 0, winreg.KEY_ALL_ACCESS)
         for i in range(0, winreg.QueryInfoKey(hkcu_software)[0]):
             try:
                 key_name = winreg.EnumKey(hkcu_software, i)
-                if safe_name.lower() in key_name.lower():
+                kn_lower = key_name.lower()
+                sn_lower = safe_name.lower()
+                an_lower = app_name.lower()
+                
+                # Check for strict equality and ensure it's not blacklisted
+                if (kn_lower == sn_lower or kn_lower == an_lower) and (kn_lower not in PROTECTED_REGISTRY_KEYS):
                     # Delete the key
                     winreg.DeleteKey(hkcu_software, key_name)
                     cleaned_registry.append(rf"HKCU\SOFTWARE\{key_name}")

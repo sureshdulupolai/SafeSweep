@@ -40,21 +40,12 @@ def mask_sensitive_paths(path_str):
 class PrivacyLogger:
     def __init__(self, app_name="SafeSweep"):
         self.app_name = app_name
-        self.log_dir = self._initialize_log_dir()
-        self.log_file_path = os.path.join(self.log_dir, f"app_{datetime.date.today().isoformat()}.log")
-        self.rotate_and_purge_old_logs()
+        self.log_dir = None
+        self.log_file_path = None
 
     def _initialize_log_dir(self):
-        """Initializes logs directory securely in local user AppData."""
-        local_app_data = os.environ.get("LOCALAPPDATA")
-        if local_app_data:
-            base_dir = os.path.join(local_app_data, self.app_name)
-        else:
-            base_dir = os.path.join(os.path.expanduser("~"), f".{self.app_name.lower()}")
-            
-        log_dir = os.path.join(base_dir, "Logs")
-        os.makedirs(log_dir, exist_ok=True)
-        return log_dir
+        """No longer creates a log directory on disk to keep the PC clean."""
+        return None
 
     def log(self, level, message, details=None):
         """Writes a structured log entry. Personal file paths in details are automatically masked."""
@@ -74,8 +65,8 @@ class PrivacyLogger:
             log_entry["details"] = cleaned_details
 
         try:
-            with open(self.log_file_path, "a", encoding="utf-8") as f:
-                f.write(json.dumps(log_entry) + "\n")
+            # Print to stderr instead of writing to disk to keep the system clean
+            print(f"[{log_entry['level']}] {log_entry['message']}", file=sys.stderr)
         except Exception:
             # Never crash the sidecar because of a logging issue
             pass
@@ -88,29 +79,6 @@ class PrivacyLogger:
 
     def error(self, message, details=None):
         self.log("ERROR", message, details)
-
-    def rotate_and_purge_old_logs(self, retention_days=7):
-        """Deletes files older than the retention threshold (default: 7 days)."""
-        try:
-            now = datetime.datetime.now()
-            for filename in os.listdir(self.log_dir):
-                if not filename.endswith(".log"):
-                    continue
-                file_path = os.path.join(self.log_dir, filename)
-                file_time = datetime.datetime.fromtimestamp(os.path.getmtime(file_path))
-                if (now - file_time).days >= retention_days:
-                    os.remove(file_path)
-        except Exception:
-            pass
-
-    def clear_all_logs(self):
-        """Allows users to manually flush all diagnostics from local directories."""
-        try:
-            for filename in os.listdir(self.log_dir):
-                file_path = os.path.join(self.log_dir, filename)
-                os.remove(file_path)
-        except Exception as e:
-            raise CleanerError(f"Failed to clear diagnostic log files: {str(e)}")
 
 # Global logger instance
 logger = PrivacyLogger()

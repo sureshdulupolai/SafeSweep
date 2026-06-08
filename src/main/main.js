@@ -18,6 +18,7 @@ function createWindow() {
     minHeight: 600,
     show: false,
     frame: true,  // native title bar and system frame controls
+    icon: path.join(__dirname, !app.isPackaged ? '../../src-ui/public/icon.png' : '../../dist-ui/icon.png'),
     titleBarStyle: 'default',
     backgroundColor: '#070A13', // Matches dashboard dark backgrounds
     webPreferences: {

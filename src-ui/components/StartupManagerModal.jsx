@@ -63,11 +63,20 @@ export default function StartupManagerModal({ isOpen, onClose }) {
           </div>
 
           {/* Body */}
-          <div className="flex-1 overflow-y-auto p-6 custom-scrollbar relative">
+          <div className="flex-1 overflow-y-auto p-6 custom-scrollbar relative min-h-[300px]">
             {startupStatus === 'loading' && (
-              <div className="absolute inset-0 z-10 bg-brand-darkest/80 flex flex-col items-center justify-center">
-                <Loader2 className="h-8 w-8 text-yellow-500 animate-spin mb-4" />
-                <p className="text-sm font-semibold text-gray-300 animate-pulse tracking-widest uppercase">Scanning Registry</p>
+              <div className="absolute inset-0 z-10 bg-brand-darkest/80 flex flex-col items-center justify-center min-h-[300px] backdrop-blur-sm">
+                <div className="relative h-16 w-16 flex items-center justify-center mb-6">
+                  <div className="absolute inset-0 rounded-full border-2 border-yellow-500/20 animate-pulse" />
+                  <motion.div
+                    animate={{ rotate: 360 }}
+                    transition={{ repeat: Infinity, duration: 1.2, ease: 'linear' }}
+                    className="absolute inset-0 rounded-full border-2 border-t-yellow-500 border-r-transparent border-b-transparent border-l-transparent"
+                  />
+                  <Gauge className="h-6 w-6 text-yellow-500 animate-pulse" />
+                </div>
+                <p className="text-xs font-bold text-gray-300 animate-pulse tracking-[0.2em] uppercase">Scanning Registry</p>
+                <p className="text-[10px] text-gray-500 mt-2 tracking-wider font-mono">Analyzing Boot Sequence...</p>
               </div>
             )}
 

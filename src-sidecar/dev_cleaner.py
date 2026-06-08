@@ -407,6 +407,30 @@ class DevCleanerService:
                 pass
             else:
                 # Default python logic
+                parent_dir = os.path.dirname(path)
+                req_path = os.path.join(parent_dir, "requirements.txt")
+                
+                # 1. Parse requirements.txt if it exists
+                if os.path.exists(req_path):
+                    try:
+                        with open(req_path, 'r', encoding='utf-8') as f:
+                            for line in f:
+                                line = line.strip()
+                                if line and not line.startswith('#'):
+                                    parts = line.split('==')
+                                    pkg = parts[0].strip().lower()
+                                    ver = parts[1].strip() if len(parts) > 1 else ""
+                                    
+                                    with master_list_lock:
+                                        if pkg not in master_list:
+                                            master_list[pkg] = {}
+                                        if ver not in master_list[pkg]:
+                                            master_list[pkg][ver] = set()
+                                        master_list[pkg][ver].add(path)
+                    except Exception as e:
+                        logger.error(f"Error parsing {req_path}", {"error": str(e)})
+                        
+                # 2. Parse physical site-packages for installed packages (even without requirements.txt)
                 site_packages = os.path.join(path, "Lib", "site-packages")
                 if not os.path.exists(site_packages):
                     # Try unix-style for compatibility if running in WSL or something
@@ -423,14 +447,25 @@ class DevCleanerService:
                 if os.path.exists(site_packages):
                     try:
                         for item in os.listdir(site_packages):
-                            if item.endswith(".dist-info"):
-                                # item format: Django-4.2.0.dist-info
-                                parts = item[:-10].split("-")
+                            if item.endswith(".dist-info") or item.endswith(".egg-info"):
+                                # item format: Django-4.2.0.dist-info or requests-2.28.1.egg-info
+                                suffix_len = 10 if item.endswith(".dist-info") else 9
+                                parts = item[:-suffix_len].split("-")
                                 if len(parts) >= 2:
                                     # version is usually the last part
                                     ver = parts[-1]
                                     pkg = "-".join(parts[:-1]).lower()
                                     
+                                    with master_list_lock:
+                                        if pkg not in master_list:
+                                            master_list[pkg] = {}
+                                        if ver not in master_list[pkg]:
+                                            master_list[pkg][ver] = set()
+                                        master_list[pkg][ver].add(path)
+                                elif len(parts) == 1:
+                                    # Package name only, no version in folder name
+                                    pkg = parts[0].lower()
+                                    ver = ""
                                     with master_list_lock:
                                         if pkg not in master_list:
                                             master_list[pkg] = {}
@@ -522,6 +557,36 @@ class DevCleanerService:
                 
             print(f"[{time.strftime('%H:%M:%S')}] DELETING ENTIRE ENVIRONMENT -> {path}", file=sys.stderr, flush=True)
             try:
+                # 1. Re-validate via Safety Middleware before executing delete to prevent C:\Windows bypasses
+                middleware.verify_delete_request(path)
+                
+                # --- AUTO BACKUP PIP PACKAGES BEFORE DELETION ---
+                site_packages = os.path.join(path, "Lib", "site-packages")
+                if os.path.exists(site_packages):
+                    try:
+                        packages = []
+                        for entry in os.scandir(site_packages):
+                            if entry.is_dir() and entry.name.endswith(".dist-info"):
+                                parts = entry.name[:-10].split('-')
+                                if len(parts) >= 2:
+                                    version = parts[-1]
+                                    pkg_name = '-'.join(parts[:-1])
+                                    packages.append(f"{pkg_name}=={version}")
+                                else:
+                                    packages.append(entry.name[:-10])
+                        
+                        if packages:
+                            parent_dir = os.path.dirname(path)
+                            backup_file = os.path.join(parent_dir, "requirements_backup.txt")
+                            with open(backup_file, "w", encoding="utf-8") as f:
+                                f.write("# Auto-generated by SafeSweep before environment deletion\n")
+                                for pkg in sorted(packages):
+                                    f.write(f"{pkg}\n")
+                            print(f"[{time.strftime('%H:%M:%S')}] 💾 BACKED UP PIP PACKAGES TO -> {backup_file}", file=sys.stderr, flush=True)
+                    except Exception as e:
+                        print(f"[{time.strftime('%H:%M:%S')}] ⚠️ Failed to backup packages: {str(e)}", file=sys.stderr, flush=True)
+                # ------------------------------------------------
+                
                 # Fast optimized delete using shutil
                 import shutil
                 shutil.rmtree(path, ignore_errors=True)

@@ -1,68 +1,76 @@
 # SafeSweep 🧹
 
-> A premium, desktop-first, and safety-focused Windows desktop utility for intelligent system cleaning and developer environment management.
+> A premium, desktop-first, and security-focused Windows desktop utility for intelligent system cleaning, background performance optimization, and developer environment management.
 
 > [!WARNING]
 > **Windows Exclusive:** SafeSweep deeply integrates with the Windows OS kernel, NTFS filesystem, and Windows Management Instrumentation (WMI). It is **NOT** supported on macOS, Linux, Android, or iOS.
 
-SafeSweep is built with a dual-engine architecture, combining the fluid UI capabilities of React/Electron with the raw performance and low-level system access of a Python sidecar backend. It is designed to clean junk files safely and specifically tackle the massive disk bloat caused by scattered developer environments (`node_modules`, `venv`, `target`, etc.).
+SafeSweep is built with a dual-engine architecture, combining the fluid UI capabilities of React/Electron with the raw performance and low-level system access of a Python sidecar backend. It is designed to clean junk files safely, optimize battery life, and provide military-grade protection against local hacking vectors while managing your system environments.
 
 ---
 
 ## 🛠️ Technology Stack
 
 **Frontend UI:**
-- **React 18** (UI Framework)
-- **Vite** (Build Tool)
+- **React 18 & Vite** (High-performance UI Framework)
 - **Zustand** (Lightweight State Management)
-- **Tailwind CSS** (Utility-first Styling & Glassmorphism)
-- **Framer Motion** (Smooth Micro-animations)
-- **Lucide React** (Consistent Iconography)
-- **React Router** (Client-side Routing)
-- **React Window** (Virtualization for large lists)
+- **Tailwind CSS & Framer Motion** (Glassmorphism & Smooth Micro-animations)
+- **React Router & Lucide React** (Client-side Routing & Iconography)
 
 **Desktop Host & Backend:**
-- **Electron** (Cross-platform Desktop Host)
-- **Node.js** (IPC and Process Management)
+- **Electron** (Cross-platform Desktop Host with strict Context Isolation)
 - **Python 3** (Sidecar Backend for heavy lifting and OS operations)
 - **PyInstaller** (Compiles Python sidecar into a standalone executable)
-- **psutil / subprocess / powercfg** (Hardware telemetry, battery health, and disk I/O)
+- **psutil / ctypes / subprocess** (Hardware telemetry, NTFS locking, and secure IPC)
 
 **Communication Protocol:**
 - Bi-directional **JSON-RPC** over `stdin`/`stdout` between Electron and the Python sidecar.
-- Custom **Watchdog** for auto-recovering crashed sidecar processes.
+- Hardened Local HTTP Fallback Server with **Strict CORS & DNS Rebinding Protection**.
 
 ---
 
-## 🚀 Key Features & Architecture
+## 🛡️ 100% Security & Privacy Architecture
 
-### 1. 📊 Live System Dashboard (`/dashboard`)
-Provides real-time, zero-latency system telemetry without relying on bloated third-party tools.
-- **Hardware Telemetry:** Live CPU Load, RAM Usage, Disk Read/Write speeds, and Network traffic.
-- **Advanced Battery Health:** Uses `powercfg` and WMI telemetry to calculate actual physical hardware degradation (Design Capacity vs Full Charge Capacity).
-- **Storage Analysis:** Visual breakdown of Used Space, Free Space, and Total Capacity.
+SafeSweep has undergone rigorous security audits to ensure that it cannot be exploited by malicious scripts or local malware:
+
+- **Anti-RCE (Remote Code Execution) Engine:** The Uninstaller module uses `shlex` parsing and strict executable validation, entirely removing `shell=True` vulnerabilities to prevent command injection.
+- **Anti-LPE (Local Privilege Escalation) Shield:** Services are modified via Base64-encoded UAC (Administrator) prompts (`-EncodedCommand`) to strictly prevent PowerShell payload injection.
+- **Strict Prototype & Object Filtering:** The Electron Preload Bridge natively filters all incoming IPC data to block Prototype Pollution attacks.
+- **Path Traversal Guards:** File explorers are restricted via `os.path.normpath` and `explorer /select` to prevent arbitrary execution of untrusted files.
+- **Anti-Battery Drain Cooldowns:** Disk telemetry threads are debounced and rate-limited. Scanning loops are rigorously bound to prevent CPU resource starvation and infinite loops.
+- **Zero Log Garbage & Offline By Default:** SafeSweep operates transparently in memory without generating `.log` files in your `AppData`. It makes zero network calls to external servers.
+
+---
+
+## 🚀 Key Features
+
+### 1. 📊 Smart Telemetry Dashboard (`/dashboard`)
+Provides a smart, zero-drain system telemetry dashboard.
+- **Event-Driven Architecture:** Fetch data only on demand. It features a strict 5-minute background cooldown ensuring **0% background battery drain** and no CPU overhead when idle.
+- **System Snapshot:** Real-time RAM, CPU, and Disk capacity visualization.
 
 ### 2. 🗑️ Interactive System Cleaner (`/cleaner`)
 A safe, deep-cleaning utility for general Windows bloatware.
-- **Smart Scanners:** Targets Windows `%TEMP%`, `AppData\Local\Temp`, System Temp, and Browser Caches (Chrome, Edge, Firefox, Brave).
-- **Safe Exclusions:** Excludes currently running applications and critical system files using a custom exclusion engine.
-- **Additional Targets:** Old Downloads, Recycle Bin, Invalid Shortcuts, and legacy log files.
+- **Smart Scanners:** Safely clears `%TEMP%`, `C:\Windows\Temp`, Windows Prefetch, Crash Dumps, and Browser Caches.
+- **Empty Folders & Duplicates:** Specialized modules to identify zero-byte folders and storage-hogging duplicate files.
+- **Archive Manager:** Quickly locates massive forgotten `.zip` or `.iso` archives.
 
 ### 3. 💻 Developer Cleaner (`/dev-cleaner`)
-The flagship feature of SafeSweep. Developers often lose hundreds of gigabytes to forgotten environments. This tool intelligently hunts them down.
-- **Target Setup (`DevCleanerScanSetup.jsx`)**: Choose between a blazing-fast specific folder scan or a deep Full PC Scan. Filter by specific languages:
-  - Python (`venv`, `env`, `.env`, `__pycache__`)
-  - Node.js (`node_modules`)
-  - Rust (`target`)
-  - Java (`.gradle`, `.m2`)
-  - Or scan for everything at once with dynamic context validation.
-- **Smart Validation**: It doesn't just look for folder names. It validates the environment (e.g., checks for `package.json` in Node, `pyvenv.cfg` in Python, or `Cargo.toml` in Rust) to prevent false positive deletions.
-- **Dependency Master List (`MasterList.jsx`)**: Before you delete environments, SafeSweep parses `package.json`, `Cargo.toml`, and Python's `site-packages` to generate a consolidated, deduplicated list of every package/library installed inside those environments.
-- **Parallel Deletion (`AwsDeleteConfirm.jsx`)**: Multi-threaded, highly parallelized deletion engine for instantly wiping thousands of tiny files, accompanied by a live streaming terminal log.
+The flagship feature of SafeSweep. Intelligently hunts down forgotten, gigabyte-heavy developer environments.
+- **Targeted Deletion:** Specifically tracks down `.venv`, `node_modules`, `target` (Rust), and `build` folders.
+- **Parallel Deletion Engine:** Multi-threaded, highly parallelized OS deletion engine capable of instantly wiping hundreds of thousands of tiny text files.
+- **Safety Middleware:** Validates paths to ensure you never accidentally delete critical system source code or protected directories.
 
-### 4. ⚙️ Settings & Privacy (`/settings`)
-- **Theme & UI:** Customize animations and developer mode toggles.
-- **Safety Middleware:** Manage exclusion paths and protected directories to ensure you never accidentally delete critical source code.
+### 4. 🚀 Performance & Services Advisor
+- **Ghost Buster 👻:** Triggers immediately on startup. It automatically detects and forcefully terminates orphaned, stuck, or older background instances of SafeSweep from previous sessions, keeping your PC clean and preventing memory leaks or battery drain.
+- **Background Service Advisor:** Safely identifies legacy or telemetry Windows bloatware services (like MapsBroker, Xbox Live Svc). You can securely stop/start them to free up background RAM.
+- **Game Booster:** Suspends background resource-heavy services and flushes RAM Standby lists for maximum frame-rates (FPS) before launching a game.
+- **Startup Manager:** Inspects Windows startup vectors to optimize PC boot times.
+
+### 5. 🗑️ Smart Application Uninstaller
+- **Orphan Leftover Cleaning:** Automatically tracks down forgotten AppData folders and Windows Registry `SOFTWARE\` keys associated with uninstalled apps.
+- **In-App Web Search:** Don't recognize an app? The built-in research tool safely opens a direct browser lookup to identify unknown bloatware.
+- **Silent Operations:** Executes uninstallation tasks securely without triggering background vulnerability loops.
 
 ---
 
@@ -71,24 +79,18 @@ The flagship feature of SafeSweep. Developers often lose hundreds of gigabytes t
 ```text
 C:\Users\user\Desktop\Cleaner\
 ├── src-ui/                  # Frontend React App (Vite)
-│   ├── components/          # Reusable UI (Sidebar, Buttons)
-│   ├── store/               # Zustand Global State
-│   │   └── useDevCleanerStore.js
-│   ├── views/               # Main Pages
-│   │   ├── Dashboard.jsx
-│   │   ├── Cleaner.jsx
-│   │   ├── Settings.jsx
-│   │   └── dev-cleaner/     # Developer Cleaner sub-components
-│   └── main.jsx & App.jsx
+│   ├── store/               # Zustand Global State Management
+│   └── views/               # Main Pages (Dashboard, Cleaner, Settings, Uninstaller)
 ├── src-sidecar/             # Python Backend Engine
-│   ├── main.py              # Sidecar entrypoint & Telemetry logic
-│   ├── dev_cleaner.py       # Heavy scanning, parsing, & deletion logic
-│   ├── rpc.py               # JSON-RPC Dispatcher
+│   ├── main.py              # Sidecar entrypoint, security validation, & RPC logic
+│   ├── delete_engine.py     # Parallelized safe deletion engine
+│   ├── uninstaller_engine.py# Registry parsing & protected uninstallation execution
+│   ├── services_advisor.py  # Encoded LPE-protected service manager
 │   └── safety_middleware.py # Prevents dangerous OS deletions
 ├── src/main/                # Electron Host processes
-│   └── sidecar.js           # Spawns and manages the Python sidecar
-├── package.json             # NPM dependencies & scripts
-└── tailwind.config.js       # Styling configuration
+│   ├── security.js          # Electron Window hardening & CSP
+│   └── sidecar.js           # Spawns and manages the Python sidecar process
+└── package.json             # NPM dependencies & scripts
 ```
 
 ---
@@ -111,15 +113,10 @@ C:\Users\user\Desktop\Cleaner\
    ```bash
    npm run electron:dev
    ```
-   *This concurrently runs the Vite dev server and the Electron wrapper, automatically spawning the Python sidecar.*
+   *This concurrently runs the Vite dev server and the Electron wrapper, automatically spawning the protected Python sidecar.*
 
 4. **Build for Production**
    ```bash
    npm run build
    ```
-   *This builds the Vite frontend and compiles the Python sidecar into a standalone binary using PyInstaller, then packages everything via Electron Builder.*
-
----
-
-## 🔒 Privacy First
-SafeSweep operates **locally on your machine**. Telemetry is strictly local. No network calls are made to external servers. What happens on your machine, stays on your machine.
+   *This compiles the Vite frontend and the Python sidecar into a standalone `.exe` using PyInstaller, then packages a zero-dependency setup via Electron Builder.*

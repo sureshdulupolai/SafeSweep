@@ -49,8 +49,7 @@ export default function PrivacySweeperModal({ isOpen, onClose }) {
           <div className="absolute top-4 right-4 z-10">
             <button 
               onClick={onClose}
-              disabled={localStatus === 'sweeping'}
-              className="p-2 text-gray-500 hover:text-white transition-colors disabled:opacity-0"
+              className="p-2 text-gray-500 hover:text-white transition-colors"
             >
               <X className="h-5 w-5" />
             </button>

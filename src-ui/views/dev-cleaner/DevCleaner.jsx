@@ -12,7 +12,7 @@ import DevCleanerSuccess from './DevCleanerSuccess';
 
 export default function DevCleaner() {
   const { 
-    step, isScanning, isAnalyzing, devCaches, currentScanPath,
+    step, isScanning, isAnalyzing, devCaches, currentScanPath, masterList,
     scanCaches, analyzeEnvs, generateDownloads, resetStore, deleteResults, cancelScan
   } = useDevCleanerStore();
   
@@ -114,8 +114,9 @@ export default function DevCleaner() {
   const handleAddFolder = async () => {
     if (window.api && window.api.selectDirectory) {
       try {
-        const dirPath = await window.api.selectDirectory();
-        if (dirPath && !dirPath.canceled) {
+        const result = await window.api.selectDirectory();
+        if (result && !result.canceled && result.filePaths && result.filePaths.length > 0) {
+          const dirPath = result.filePaths[0];
           if (customScanPaths.includes(dirPath)) {
             showToast(`Folder already added: ${dirPath}`);
           } else {
@@ -297,7 +298,7 @@ export default function DevCleaner() {
               
               <div className="space-y-6">
                 <h3 className="text-lg font-bold text-white">Consolidated Packages Preview</h3>
-                {useDevCleanerStore.getState().masterList.length > 0 ? (
+                {masterList && masterList.length > 0 ? (
                   <MasterList checkedEnvs={checkedEnvs} />
                 ) : (
                   <div className="glass-card p-6 border border-brand-border text-center">

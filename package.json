@@ -1,6 +1,6 @@
 {
   "name": "safesweep",
-  "version": "1.0.0",
+  "version": "1.1.0",
   "description": "Premium, offline-first, and safety-focused Windows desktop utility.",
   "main": "src/main/main.js",
   "scripts": {
@@ -52,7 +52,7 @@
     "privacy-focused",
     "electron"
   ],
-  "author": "Suresh Polai",
+  "author": "Suresh Dulu Polai",
   "license": "Proprietary",
   "dependencies": {
     "framer-motion": "^11.2.10",
